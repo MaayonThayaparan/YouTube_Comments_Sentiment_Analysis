@@ -52,10 +52,33 @@ Tool also comes with additional features to incorporate likes and reply sentimen
 
 <img width="429" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/c7f958fb-1599-441f-a797-2cf139e118e2">
 
-- Input YouTube URL or video ID, select whether you want Watson IBM or ChatGPT to do the sentiment analysis then click 'Submit'. The overall video sentiment will be displayed and scrolling down will show you the breakdown comment by comment.
+- Input YouTube URL or video ID, select whether you want Watson IBM or ChatGPT to do the sentiment analysis then click 'Submit'. The overall video sentiment will be displayed and scrolling down will show you the breakdown comment by comment. Since no 'Additional Options' were used, the 'Sentiment Score' and 'Sentiment Score' weighed will not differ.  
 
 <img width="1872" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/91a55a10-2017-4f6c-a4ad-9068186cb7c2">
 <img width="1871" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/b5a7476b-f459-4e34-8dca-1b0a8c3b8ad3">
+
+- Click on 'Additional Options' to view more options.
+
+<img width="270" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/8c01a541-3572-4715-b330-8bc0c3a97fe6">
+
+- Selecting checkbox for 'Incorporate Likes?' or 'Reply Sentiment' will prompt user to input a weight. You can limit the search using the 'Limit Comments Anaylzed' field for videos with a lot of comments to improve run time. The checkbox for 'Show COmments Analysis (see bottom)' toggles the comment breakdown table on and off.
+
+<img width="408" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/0ac6f2b1-ef51-44cc-bc0c-35f3b2ce85b4">
+
+- When either likes or reply sentiment is incorporated, the 'Sentiment Score' and Sentiment Score Weighed' will differ. The 'Sentiment Score' is the score that would have appeared without the weights added.
+
+<img width="265" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/a5519726-9a09-4fc7-b4ac-07b799514594">
+
+- You will also notice that selecting 'Incorporate Likes' or 'Incorporate Reply Sentiment' will add a column to the table for 'Score Weighed'. A column for 'Like Count' will be added if likes are incorporated. Several columns for 'Replies', 'Reply Label', 'Reply Score', 'Reply Like' (only appers if likes are incorporated)', and 'Reply Score Weighed' are added if reply sentimet is incorporated.
+
+<img width="560" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/3c18355a-51e4-4e37-afea-da4d84b2cf29">
+
+### How to Use
+- YouTube API is very robust, could expand this project into a full blown analtics tool to do channel level sentiment, trending, etc. If thorough enough, could package and deploy this as a product on the AppStore. 
+- Would like to rebuild template using React, so can dynamically change table values if like or reply sentiment weight is inputted after data loads. 
+
+
+
 
 
 
