@@ -92,7 +92,7 @@
 
 
     {% if comments == "INVALID ID" %}
-    <p>
+    <p class="text-center text-danger">
         You have provided an invalid YouTube url or Video ID. 
         <br>
         If YouTube URL is copied direct webpage, try the Video ID directly in input field. 
@@ -141,7 +141,7 @@
                                     <img style="max-width:100%;" src="{{url_for('static',filename='/img/positive.png')}}" alt="Positive Sentiment">
                                 {% elif comments.total_sentiment_score_weighed < 0 %}
                                     <img style="max-width:100%;" src="{{url_for('static',filename='/img/negative.png')}}" alt="Negative Sentiment">
-                                {% elif comments.total_sentiment_score_weighed == 0 %}
+                                {% elif comments.total_sentiment_score_weighed|int == 0 %}
                                     <img style="max-width:100%;" src="{{url_for('static',filename='/img/neutral.png')}}" alt="Neutral Sentiment">
                                 {% endif %}
                             </div>
@@ -210,7 +210,7 @@
                     {% elif value['comment_sentiment_score_weighed'] < 0 %}
                     <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='/img/negative.png')}}"></img></td>
     
-                    {% elif value['comment_sentiment_label'] == 0 %}
+                    {% elif value['comment_sentiment_label']|int == 0 %}
                     <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='/img/neutral.png')}}"></img></td>
                     {% endif %}
                     
@@ -235,7 +235,7 @@
                         {% elif reply_value['reply_sentiment_score_weighed'] < 0 %}
                         <td class="text-center"><img style="max-width:25%;" src="{{url_for('static',filename='/img/negative.png')}}"></img></td>
     
-                        {% elif reply_value['reply_sentiment_score_weighed'] == 0 %}
+                        {% elif reply_value['reply_sentiment_score_weighed']|int == 0 %}
                         <td class="text-center"><img style="max-width:25%;" src="{{url_for('static',filename='/img/neutral.png')}}"></img></td>
                         {% endif %}
     
