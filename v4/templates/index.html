@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Comments Sentiment Analysis</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container mt-5">
+
+    <div class="jumbotron text-center">
+        <h1 class="display-4">YouTube Comments Sentiment Analysis</h1>
+        <p class="lead">Analyzing sentiments in YouTube comments</p>
+    </div>
+    
+    <form method="post" class="mb-4">
+        <div class="form-group">
+            <label for="text">Enter text:</label>
+            <input type="text" class="form-control" id="text" name="text">
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+    </form>
+
+    {% if overall_sentiment  %}
+        <div class="mt-5">
+            <h2>Overall Sentiment:</h2>
+            <p>
+                
+                {% if overall_sentiment.label == "positive" %}
+                <img style="max-width:30%;" src="{{url_for('static',filename='positive.png')}}"></img>
+                
+                {% elif overall_sentiment.label == "negative" %}
+                <img style="max-width:30%;" src="{{url_for('static',filename='negative.png')}}"></img>
+
+                {% elif overall_sentiment.label == "neutral" %}
+                <img style="max-width:30%;" src="{{url_for('static',filename='neutral.png')}}"></img>
+                {% endif %}
+                
+                
+                
+                {{overall_sentiment.score}}
+            
+            </p>
+
+            {% if comments %}
+            <h2>Comments Breakdown</h2>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Comment</th>
+                        <th>Like Count</th>
+                        <th>Label</th>
+                        <th>Score</th>
+                        <th>Replies</th>
+                        <th>Reply Label</th>
+                        <th>Reply Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in comments.items() %}
+                    <tr>
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}">{{ value['comment'] }}</td>
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}">{{ value['likeCount'] }}</td>
+
+                        <!-- Conditionally shows different emoji based on NLU sentiment -->
+                        {% if value['comment_sentiment_label'] == "positive" %}
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='positive.png')}}"></img></td>
+                        
+                        {% elif value['comment_sentiment_label'] == "negative" %}
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='negative.png')}}"></img></td>
+
+                        {% elif value['comment_sentiment_label'] == "neutral" %}
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='neutral.png')}}"></img></td>
+                        {% endif %}
+
+                        <td rowspan="{{ value.replies|length if value.replies else 1 }}">{{ value['comment_sentiment_score'] }}</td>
+                        
+                        {% if value.replies %}
+                            {% for reply_key, reply_value in value['replies'].items() %}
+                            <td>{{ reply_value['reply'] }}</td>
+
+                            <!-- Conditionally shows different emoji based on NLU sentiment -->
+                            {% if reply_value['reply_sentiment_label'] == "positive" %}
+                            <td><img style="max-width:25%;" src="{{url_for('static',filename='positive.png')}}"></img></td>
+                            
+                            {% elif reply_value['reply_sentiment_label'] == "negative" %}
+                            <td><img style="max-width:25%;" src="{{url_for('static',filename='negative.png')}}"></img></td>
+
+                            {% elif reply_value['reply_sentiment_label'] == "neutral" %}
+                            <td><img style="max-width:25%;" src="{{url_for('static',filename='neutral.png')}}"></img></td>
+                            {% endif %}
+
+                            <td>{{ reply_value['reply_sentiment_score'] }}</td>
+                            </tr>
+                            <tr>
+                            {% endfor %}
+                        {% else %}
+                            <td colspan="3">No replies</td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <!-- Bootstrap JS and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
