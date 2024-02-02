@@ -40,7 +40,22 @@ Tool also comes with additional features to incorporate likes and reply sentimen
 - Open terminal
 - Navigate to the project folder 'v10'
 - Run the following commands: python mainApp.py
+- Last commmand will run the server. Open web browser and enter URL: http://localhost:5000
 
 ### How to Use
 
 - If program was executed properly, you will see the below webpage. 
+
+<img width="939" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/a6c51b2c-08a8-49ee-be2e-56ed63410acc">
+
+- You can input a YouTube URL (many formats supported) or a YouTube video ID. Putting an non-YouTube URL will display an error.
+
+<img width="429" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/c7f958fb-1599-441f-a797-2cf139e118e2">
+
+- Input YouTube URL or video ID, select whether you want Watson IBM or ChatGPT to do the sentiment analysis then click 'Submit'. The overall video sentiment will be displayed and scrolling down will show you the breakdown comment by comment.
+
+<img width="1872" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/91a55a10-2017-4f6c-a4ad-9068186cb7c2">
+<img width="1871" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/b5a7476b-f459-4e34-8dca-1b0a8c3b8ad3">
+
+
+
