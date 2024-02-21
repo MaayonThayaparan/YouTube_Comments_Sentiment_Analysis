@@ -73,7 +73,7 @@ Tool also comes with additional features to incorporate likes and reply sentimen
 
 <img width="560" alt="image" src="https://github.com/MaayonThayaparan/YouTube_Comments_Sentiment_Analysis/assets/43158629/3c18355a-51e4-4e37-afea-da4d84b2cf29">
 
-### How to Use
+### Future Enhancements
 - YouTube API is very robust, could expand this project into a full blown analtics tool to do channel level sentiment, trending, etc. If thorough enough, could package and deploy this as a product on the AppStore. 
 - Would like to rebuild template using React, so can dynamically change table values if like or reply sentiment weight is inputted after data loads. 
 
