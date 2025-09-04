@@ -1,3 +1,8 @@
+/**
+ * CSV export helpers
+ * WHAT: Convert scored rows to CSV and trigger a browser download.
+ * WHY: Lightweight utility; avoids external libs for a simple task.
+ */
 export function toCSV(rows: any[]) {
   if (!rows?.length) return ''
   const headers = ['id','authorDisplayName','likeCount','totalReplyCount','base','adjusted','textOriginal','publishedAt']

@@ -1,12 +1,22 @@
+/**
+ * App (v9 layout)
+ * ---------------
+ * WHAT: Top-level composition that emphasizes analytics first:
+ *       - Combined AnalyzeBar at top (URL + Model + API key)
+ *       - Video meta card
+ *       - Compact TimeWindow
+ *       - FRONT & CENTER: Metrics + Distribution + Pie + TimeSeries (responsive grid)
+ *       - Below: Weights, CommentsTable, TopKeywords, Leaderboard, Export, Summary
+ * WHY: Shows more high-signal information on one screen and scales down cleanly on mobile.
+ */
 import React, { useMemo, useState, useEffect } from 'react'
-import { URLInput } from './components/URLInput'
+import { AnalyzeBar } from './components/AnalyzeBar'
 import { WeightsPanel } from './components/WeightsPanel'
 import { CommentsTable } from './components/CommentsTable'
 import { MetricsPanel } from './components/MetricsPanel'
 import { SentimentChart } from './components/SentimentChart'
 import { SentimentPie } from './components/SentimentPie'
 import { SummaryPanel } from './components/SummaryPanel'
-import { ModelSelector } from './components/ModelSelector'
 import { ExportPanel } from './components/ExportPanel'
 import { TimeSeriesChart } from './components/TimeSeriesChart'
 import { VideoMetaCard } from './components/VideoMetaCard'
@@ -23,7 +33,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [weights, setWeights] = useState<Weights>({ wComment: 1.0, wLikes: 0.7, wReplies: 1.0 })
-  const [model, setModel] = useState<string>('vader')
+  const [model, setModel] = useState<string>('vader') // default = VADER
   const [lastModelUsed, setLastModelUsed] = useState<string>('vader')
   const [apiKey, setApiKey] = useState<string>('')
   const [jobId, setJobId] = useState<string>('')
@@ -33,12 +43,14 @@ export default function App() {
 
   const modelDirty = !!items.length && model !== lastModelUsed
 
+  // Window state: re-derived when new data is loaded
   const allDates = useMemo(()=> items.map(i=>(i.publishedAt||'').slice(0,10)).filter(Boolean).sort(), [items])
   const minDate = allDates[0] || '2006-01-01'
   const maxDate = allDates[allDates.length-1] || new Date().toISOString().slice(0,10)
   const [window, setWindow] = useState<{from:string,to:string}>({ from: minDate, to: maxDate })
   useEffect(()=>{ setWindow({ from: minDate, to: maxDate }) }, [minDate, maxDate])
 
+  // Poll progress while loading to animate progress bar
   useEffect(() => {
     if (!loading || !jobId) return
     const t = setInterval(async () => {
@@ -73,6 +85,7 @@ export default function App() {
     }
   }
 
+  // Derivations
   const scoredAll = useMemo(() => computeAdjustedScores(items, weights), [items, weights])
   const scored = useMemo(() => {
     return scoredAll.filter(r => {
@@ -107,53 +120,58 @@ export default function App() {
 
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+      {/* HEADER */}
       <header className="rounded-2xl p-6 header-grad text-white shadow flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">YouTube Comment Sentiment</h1>
       </header>
 
-      <div className="lg:col-span-2 space-y-4">
-        <URLInput onSubmit={fetchComments} loading={loading} />
-        <ModelSelector model={model} onModelChange={setModel} apiKey={apiKey} onApiKeyChange={setApiKey} dirty={modelDirty} />
-      </div>
+      {/* Combined bar: URL + Model + Key + Analyze */}
+      <AnalyzeBar model={model} onModelChange={setModel} apiKey={apiKey} onApiKeyChange={setApiKey} onAnalyze={fetchComments} loading={loading} modelDirty={modelDirty} />
 
+      {/* Video meta card */}
       <VideoMetaCard videoIdOrUrl={lastQuery} />
 
+      {/* When loading, we turn the main analytics area into skeletons and show progress */}
       {loading ? (
         <>
-          <div className="card card-ghost h-28"></div>
+          <div className="card card-ghost h-16"></div>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <div className="card card-ghost h-60"></div>
-              <div className="card card-ghost h-96"></div>
-            </div>
-            <div className="lg:col-span-1 space-y-4">
-              <div className="card card-ghost h-40"></div>
-              <div className="card card-ghost h-80"></div>
-              <div className="card card-ghost h-80"></div>
-              <div className="card card-ghost h-80"></div>
-            </div>
+            <div className="card card-ghost h-40"></div>
+            <div className="card card-ghost h-40"></div>
+            <div className="card card-ghost h-40"></div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card card-ghost h-64"></div>
+            <div className="card card-ghost h-64"></div>
           </div>
           <div className="w-full h-2 bg-gray-200 rounded"><div className="h-2 bg-gradient-to-r from-red-500 via-fuchsia-500 to-indigo-600 rounded" style={{ width: `${progressPct}%` }} /></div>
         </>
       ) : (
         <>
+          {/* Compact time window above charts */}
           <TimeWindow minDate={minDate} maxDate={maxDate} value={window} onChange={setWindow} />
+
+          {/* FRONT & CENTER analytics grid — responsive */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-4">
-              <WeightsPanel weights={weights} onChange={setWeights} disabled={!items.length} />
-              {error && <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">{error}</div>}
-              <CommentsTable rows={scored as any} />
-              <ExportPanel rows={scored as any} />
-            </div>
-            <div className="lg:col-span-1 space-y-4">
-              <MetricsPanel rows={scored as any} onEvidence={openEvidence} />
-              <SentimentChart rows={scored as any} />
-              <SentimentPie rows={scored as any} />
-              <TimeSeriesChart rows={scored as any} />
-              <TopKeywords texts={allTexts} />
-              <Leaderboard rows={scored as any} />
-              <SummaryPanel texts={allTexts} model={model} apiKey={apiKey} />
-            </div>
+            <MetricsPanel rows={scored as any} onEvidence={openEvidence} />
+            <SentimentPie rows={scored as any} />
+            <SentimentChart rows={scored as any} />
+          </div>
+          <div className="grid grid-cols-1 gap-6">
+            <TimeSeriesChart rows={scored as any} />
+          </div>
+
+          {/* Below analytics: controls + deep data */}
+          <WeightsPanel weights={weights} onChange={setWeights} disabled={!items.length} />
+          {error && <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">{error}</div>}
+          <CommentsTable rows={scored as any} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TopKeywords texts={allTexts} />
+            <Leaderboard rows={scored as any} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ExportPanel rows={scored as any} />
+            <SummaryPanel texts={allTexts} model={model} apiKey={apiKey} />
           </div>
         </>
       )}

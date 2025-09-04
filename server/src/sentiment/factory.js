@@ -1,6 +1,13 @@
+/**
+ * Provider factory
+ * ----------------
+ * WHAT: Central switch that instantiates the correct sentiment provider by key.
+ * WHY: Keeps API routes agnostic of provider implementation and supports easy extension.
+ */
 import { VaderProvider } from "./VaderProvider.js"
 import { OllamaLlama3Provider } from "./OllamaLlama3Provider.js"
 import { OpenAIProvider } from "./OpenAIProvider.js"
+
 export function buildProvider(model,opts={}){
   switch((model||'').toLowerCase()){
     case 'llama3-free': return new OllamaLlama3Provider(opts)
