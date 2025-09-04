@@ -1,32 +1,3 @@
-/**
- * RepliesModal
- * -----------------------------------------------------------------------------
- * WHAT
- *   A modal that displays a highlighted parent (top-level) comment and a
- *   scrollable list of its replies. Each reply shows a compact sentiment chip,
- *   metadata (date / likes / author), and the reply text.
- *
- * WHY
- *   Gives reviewers a focused, drill-down view without losing the context of
- *   the original comment. Sentiment chips align with the rest of the app.
- *
- * BEHAVIOR & UX
- *   - Opens when `open` is true; closes on backdrop click or Escape.
- *   - Locks background scroll while open (shared hook is ref-counted).
- *   - Emphasizes the parent comment (larger font, subtle panel).
- *   - If we didn’t fetch all replies upstream, shows a gentle hint.
- *
- * ACCESSIBILITY
- *   - Uses `role="dialog"` and `aria-modal="true"`.
- *   - Escape key to close; backdrop click to close.
- *
- * DATA NOTES
- *   - `parent.totalReplyCount` (or `parent.replyCount`) indicates how many
- *     replies exist in total; we compare that to `replies.length` (loaded).
- *   - Each reply can optionally include a precomputed `base` sentiment score;
- *     if missing, the chip falls back to neutral (0).
- */
-
 import React, { useEffect } from 'react';
 import { colorForScore } from '../../utils/colors';
 import { useScrollLock } from './useScrollLock';
@@ -39,13 +10,11 @@ export function RepliesModal({
 }: {
   open: boolean;
   onClose: () => void;
-  parent: any;          // TODO: replace with a ThreadItem type from utils/scoring
-  replies: any[];       // TODO: replace with a ReplyItem[] type from utils/scoring
+  parent: any;          // ideally type this
+  replies: any[];       // ideally type this
 }) {
-  // Lock document scrolling while the modal is open; unlock on unmount or close.
   useScrollLock(open);
 
-  // Close on Escape for keyboard accessibility.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -55,20 +24,19 @@ export function RepliesModal({
 
   if (!open) return null;
 
-  // How many replies we’ve actually rendered vs. how many exist on the thread.
   const loadedCount = replies?.length ?? 0;
-  const expectedTotal = parent?.replyCount ?? parent?.totalReplyCount; // use whichever field is provided
+  const expectedTotal = parent?.replyCount ?? parent?.totalReplyCount; // use whichever you track
 
   return (
     <div className="fixed inset-0 z-[2147483647] isolate" role="dialog" aria-modal="true">
-      {/* Backdrop (solid, non-blended so it works across all themes) */}
+      {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Centered panel */}
+      {/* Panel */}
       <div className="relative z-10 flex min-h-full items-center justify-center p-4">
         <div
           className="
@@ -76,7 +44,6 @@ export function RepliesModal({
             bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
           "
         >
-          {/* Title + Close */}
           <div className="flex items-center justify-between p-4 pb-3">
             <div className="text-lg font-semibold">
               Replies to {parent?.authorDisplayName}
@@ -89,7 +56,7 @@ export function RepliesModal({
             </button>
           </div>
 
-          {/* Emphasized parent comment */}
+          {/* Parent comment — emphasized */}
           <div className="px-4 mb-3">
             <div className="text-[13px] text-gray-500 mb-1">
               {(parent?.publishedAt || '').slice(0, 10)} • {parent?.likeCount ?? 0} likes
@@ -101,10 +68,9 @@ export function RepliesModal({
 
           {/* Replies list */}
           <div className="px-4 pb-4 max-h-[70vh] overflow-auto space-y-2">
-            {/* Soft hint if upstream didn’t load all replies */}
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
               {!!expectedTotal && expectedTotal > loadedCount && (
-                <span>Showing {loadedCount} of {expectedTotal} (fetch more upstream to see all)</span>
+                <span>of {expectedTotal} (fetch more upstream to see all)</span>
               )}
             </div>
 
@@ -112,7 +78,6 @@ export function RepliesModal({
               <div className="text-gray-500">No Replies</div>
             ) : (
               replies.map((r) => {
-                // Color chip reflects reply sentiment (falls back to 0 if missing)
                 const c = colorForScore(typeof r.base === 'number' ? r.base : 0);
                 return (
                   <div key={r.id} className="border-b border-[var(--border)] pb-2">

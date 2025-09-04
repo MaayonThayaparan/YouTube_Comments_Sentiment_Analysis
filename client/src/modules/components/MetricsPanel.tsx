@@ -1,38 +1,7 @@
-/**
- * MetricsPanel
- * -----------------------------------------------------------------------------
- * WHAT
- *   Compact KPIs for the filtered dataset:
- *     - Avg Score (clickable → opens "near-average" evidence)
- *     - Counts of Positive / Neutral / Negative (each clickable → evidence)
- *     - % Positive, Avg Likes / Comment, Avg Replies / Comment
- *
- * WHY
- *   Provides an at-a-glance pulse of sentiment and engagement. The primary and
- *   color cards are intentionally “button-like” to encourage quick drills into
- *   sample evidence without leaving context.
- *
- * DATA FLOW
- *   props.rows     : ScoredRow[] already filtered & adjusted upstream.
- *   props.onEvidence(type)
- *     - type: 'avg' | 'pos' | 'neu' | 'neg'
- *     - Parent (App) opens EvidenceModal with the corresponding samples.
- *
- * DESIGN
- *   - PrimaryCard  : neutral surface for Avg Score, accent ring on hover.
- *   - ColorCard    : gradient background per sentiment bucket; white text over it.
- *   - SecondaryCard: neutral KPIs that are not interactive.
- *
- * ACCESSIBILITY
- *   - KPI tiles are <button> elements (keyboard focusable & clickable).
- *   - Tooltips provide affordances for “click to see examples”.
- */
-
 import React from 'react';
 import { type ScoredRow } from '../../utils/scoring';
 
-/* Classic, crisp “i” icon (circled).
- * Rendered inline and reused by all KPI tiles for consistent affordance. */
+/* Classic, crisp “i” icon (circled) */
 function InfoIcon({ title }: { title: string }) {
   return (
     <span
@@ -64,16 +33,9 @@ export function MetricsPanel({
   rows: ScoredRow[];
   onEvidence?: (type: 'avg' | 'pos' | 'neu' | 'neg') => void;
 }) {
-  // Uniform empty state so the grid layout doesn’t collapse abruptly.
   if (!rows?.length) return <div className="card p-4 text-center text-gray-500">No Data</div>;
 
-  /* ------------------------------
-   * Aggregate metrics (cheap O(N))
-   * ------------------------------
-   * - Avg score over adjusted values
-   * - Bucket counts with the same thresholds used across the app
-   * - Simple engagement stats for context
-   */
+  // Aggregates
   const n = Math.max(rows.length, 1);
   const avg = rows.reduce((a, b) => a + b.adjusted, 0) / n;
   const pos = rows.filter((r) => r.adjusted > 0.1).length;
@@ -84,7 +46,6 @@ export function MetricsPanel({
   const avgLikes = rows.reduce((a, b) => a + ((b as any).likeCount ?? 0), 0) / n;
   const avgReplies = rows.reduce((a, b) => a + ((b as any).totalReplyCount ?? 0), 0) / n;
 
-  // Local formatters to keep rendering concise and consistent.
   const fmt2 = (x: number) => x.toFixed(2);
   const pct1 = (x: number) => `${x.toFixed(1)}%`;
 
@@ -92,17 +53,17 @@ export function MetricsPanel({
     <div className="card p-4">
       <h3 className="text-lg font-semibold mb-3">Metrics</h3>
 
-      {/* Row 1: Primary metric (Average Score) */}
+      {/* Row 1: Avg Score */}
       <div className="grid grid-cols-1 gap-4 mb-2">
         <PrimaryCard
           label="Avg Score"
           value={fmt2(avg)}
           onClick={() => onEvidence?.('avg')}
-          tooltip="Click for sample comments near the average"
+          tooltip="Click for sample comments that drive field"
         />
       </div>
 
-      {/* Row 2: Sentiment buckets (interactive) */}
+      {/* Row 2: Positive / Neutral / Negative */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
         <ColorCard
           label="Positive"
@@ -111,7 +72,7 @@ export function MetricsPanel({
           ring="ring-emerald-300/60"
           border="border-emerald-400"
           onClick={() => onEvidence?.('pos')}
-          tooltip="Click for positive sample comments"
+          tooltip="Click for sample comments that drive field"
         />
         <ColorCard
           label="Neutral"
@@ -120,7 +81,7 @@ export function MetricsPanel({
           ring="ring-amber-300/60"
           border="border-amber-300"
           onClick={() => onEvidence?.('neu')}
-          tooltip="Click for neutral sample comments"
+          tooltip="Click for sample comments that drive field"
         />
         <ColorCard
           label="Negative"
@@ -129,11 +90,11 @@ export function MetricsPanel({
           ring="ring-rose-300/60"
           border="border-rose-400"
           onClick={() => onEvidence?.('neg')}
-          tooltip="Click for negative sample comments"
+          tooltip="Click for sample comments that drive field"
         />
       </div>
 
-      {/* Row 3: Secondary KPIs (read-only) */}
+      {/* Row 3: Secondary metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SecondaryCard label="% Positive" value={pct1(pctPositive)} />
         <SecondaryCard label="Avg Likes / Comment" value={fmt2(avgLikes)} />
@@ -143,10 +104,9 @@ export function MetricsPanel({
   );
 }
 
-/* PrimaryCard
- * - Neutral surface, accent ring on hover.
- * - Absolutely-positioned InfoIcon in the corner; center content via flex.
- * - Click delegates to parent (Evidence modal trigger). */
+/* PrimaryCard (Avg Score)
+   - Icon absolutely pinned top-right; content centered via flex.
+   - Original sizes kept: label text-xs, value text-3xl. */
 function PrimaryCard({
   label,
   value,
@@ -167,14 +127,14 @@ function PrimaryCard({
         px-4 py-4 transition hover:shadow-lg hover:-translate-y-[1px]
         hover:ring-2 hover:ring-indigo-300/50
       "
-      title={tooltip || 'Click for sample comments'}
+      title={tooltip || 'Click for sample comments that drive field'}
     >
-      {/* Corner affordance */}
+      {/* TOP-RIGHT ICON */}
       <div className="absolute top-2 right-2">
-        <InfoIcon title={tooltip || 'Click for sample comments'} />
+        <InfoIcon title={tooltip || 'Click for sample comments that drive field'} />
       </div>
 
-      {/* Centered label + value */}
+      {/* CENTERED CONTENT */}
       <div className="flex flex-col items-center justify-center text-center text-gray-900 dark:text-gray-900">
         <div className="text-xs font-medium opacity-80">{label}</div>
         <div className="text-3xl font-extrabold leading-tight">{value}</div>
@@ -183,10 +143,9 @@ function PrimaryCard({
   );
 }
 
-/* ColorCard
- * - Gradient background maps to sentiment grouping.
- * - White text for contrast on both light/dark themes.
- * - Hover ring color aligns with gradient hue. */
+/* ColorCard (Positive/Neutral/Negative)
+   - Same centering approach as above; icon top-right absolute.
+   - Original sizes kept: label text-xs, value text-2xl. */
 function ColorCard({
   label,
   value,
@@ -214,14 +173,14 @@ function ColorCard({
         text-white border ${border} shadow
         transition hover:shadow-lg hover:-translate-y-[1px] hover:ring-2 ${ring}
       `}
-      title={tooltip || 'Click for sample comments'}
+      title={tooltip || 'Click for sample comments that drive field'}
     >
-      {/* Corner affordance */}
+      {/* TOP-RIGHT ICON */}
       <div className="absolute top-2 right-2">
-        <InfoIcon title={tooltip || 'Click for sample comments'} />
+        <InfoIcon title={tooltip || 'Click for sample comments that drive field'} />
       </div>
 
-      {/* Centered label + value */}
+      {/* CENTERED CONTENT */}
       <div className="flex flex-col items-center justify-center text-center">
         <div className="text-xs font-semibold opacity-95">{label}</div>
         <div className="text-2xl font-extrabold leading-tight">{value}</div>
@@ -230,8 +189,7 @@ function ColorCard({
   );
 }
 
-/* SecondaryCard
- * - Neutral (non-clickable) KPIs for supplemental context. */
+/* Secondary neutral cards (non-clickable) */
 function SecondaryCard({ label, value }: { label: string; value: string }) {
   return (
     <div

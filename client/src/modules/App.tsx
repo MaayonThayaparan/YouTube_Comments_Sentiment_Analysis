@@ -1,32 +1,3 @@
-/**
- * -----------------------------------------------------------------------------
- * App (Root Composition) — v1.8
- * -----------------------------------------------------------------------------
- * PURPOSE
- *   Top-level orchestrator for the YouTube sentiment explorer UI. This module:
- *     • Hosts global state (fetched threads, weights, filters, progress, errors)
- *     • Coordinates server calls (comments + scoring, progress polling)
- *     • Applies unified/global filters and passes derived views to panels
- *     • Wires together the main layout (header, controls, KPIs, charts, tables)
- *
- * MAJOR SUBSYSTEMS
- *   - Data fetch: `/api/comments_scored` (server computes/attaches per-item base)
- *   - Scoring: `computeAdjustedScores(items, weights)` (client blend model)
- *   - Unified filters: date/country/subs/likes/replies applied once globally
- *   - Evidence/Modals: sampling utilities surfaced via `EvidenceModal`
- *
- * KEY DESIGN DECISIONS
- *   - Single source of truth: `items` holds normalized threads from the server.
- *     All scoring & filtering are derived (memoized) to keep the UI pure.
- *   - Two-stage derivation: (1) compute adjusted scores on all items,
- *     then (2) apply unified filters for a consistent cross-panel view.
- *   - Progress polling: lightweight timer while loading keyed by `jobId`,
- *     decoupled from the fetch promise (safe to unmount/cleanup).
- *   - Model selection: The server runs the requested sentiment model; we store
- *     `lastModelUsed` to hint when displays may be “stale” vs the current model.
- * -----------------------------------------------------------------------------
- */
-
 import React, { useMemo, useState, useEffect } from "react";
 
 // Top bar + major panels
@@ -50,16 +21,12 @@ import { UnifiedFilters, type UnifiedFiltersState } from "./components/UnifiedFi
 
 import { computeAdjustedScores, type ThreadItem } from "../utils/scoring";
 
-/** Blend controls for the scoring model. */
 type Weights = { wComment: number; wLikes: number; wReplies: number };
 
 export default function App() {
-  // ---------------------------- Server/Fetch State ----------------------------
   const [items, setItems] = useState<ThreadItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Progress polling (server pushes page/text counters keyed by jobId)
   const [jobId, setJobId] = useState<string>("");
   const [progress, setProgress] = useState<{
     totalPages: number;
@@ -68,26 +35,21 @@ export default function App() {
     scoredTexts: number;
   } | null>(null);
 
-  // ----------------------- Model/Weights & API configuration ------------------
   const [weights, setWeights] = useState<Weights>({ wComment: 1.0, wLikes: 0.7, wReplies: 1.0 });
   const [model, setModel] = useState<string>("vader");
   const [lastModelUsed, setLastModelUsed] = useState<string>("vader");
   const [apiKey, setApiKey] = useState<string>("");
 
-  // For VideoMetaCard and user feedback, keep the last query string.
   const [lastQuery, setLastQuery] = useState<string>("");
 
-  // ------------------------------- Evidence modal ----------------------------
   const [evidence, setEvidence] = useState<{
     open: boolean;
     title: string;
     items: Array<{ author: string; text: string; score?: number }>;
   }>({ open: false, title: "", items: [] });
 
-  // If the model selector changes after we loaded data, flag to the user.
   const modelDirty = !!items.length && model !== lastModelUsed;
 
-  // --------------------------- Derived date boundaries ------------------------
   const allDates = useMemo(
     () => items.map((i) => (i.publishedAt || "").slice(0, 10)).filter(Boolean).sort(),
     [items]
@@ -95,7 +57,6 @@ export default function App() {
   const minDate = allDates[0] || "2006-01-01";
   const maxDate = allDates[allDates.length - 1] || new Date().toISOString().slice(0, 10);
 
-  // ------------------------------- Global filters -----------------------------
   const [filters, setFilters] = useState<UnifiedFiltersState>({
     from: minDate,
     to: maxDate,
@@ -109,7 +70,6 @@ export default function App() {
     maxReplies: "",
   });
 
-  // When items change, refresh country options and reset date range bounds.
   useEffect(() => {
     const countries = Array.from(
       new Set(
@@ -121,7 +81,6 @@ export default function App() {
     setFilters((s) => ({ ...s, from: minDate, to: maxDate, countryOptions: countries }));
   }, [items, minDate, maxDate]);
 
-  // ------------------------------ Progress polling ----------------------------
   useEffect(() => {
     if (!loading || !jobId) return;
     const t = setInterval(async () => {
@@ -135,13 +94,11 @@ export default function App() {
     return () => clearInterval(t);
   }, [loading, jobId]);
 
-  // --------------------------------- Data fetch --------------------------------
   async function fetchComments(videoIdOrUrl: string) {
     setLoading(true);
     setError(null);
     try {
       setLastQuery(videoIdOrUrl);
-
       const jid = Math.random().toString(36).slice(2);
       setJobId(jid);
       setProgress({ totalPages: 0, fetchedPages: 0, totalTexts: 0, scoredTexts: 0 });
@@ -154,7 +111,6 @@ export default function App() {
       const res = await fetch(url, { headers: apiKey ? { "X-API-Key": apiKey } : undefined });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "Failed");
-
       setItems(data.items);
       setLastModelUsed(model);
     } catch (e: any) {
@@ -164,7 +120,7 @@ export default function App() {
     }
   }
 
-  // -------------------------- Global derived datasets -------------------------
+  // -------------------------- Global filtered data ---------------------------
   const scoredAll = useMemo(() => computeAdjustedScores(items, weights), [items, weights]);
 
   const scoredWindowed = useMemo(() => {
@@ -204,7 +160,6 @@ export default function App() {
     });
   }, [scoredAll, filters]);
 
-  // ------------------------------ Progress helpers ----------------------------
   const progressPct =
     progress && progress.totalTexts > 0
       ? Math.floor((progress.scoredTexts / progress.totalTexts) * 100)
@@ -215,7 +170,6 @@ export default function App() {
     ? `page ${progress.fetchedPages}`
     : "";
 
-  // ------------------------------- Evidence sampling --------------------------
   function openEvidence(type: string) {
     let title = "Evidence";
     let itemsX: Array<{ author: string; text: string; score?: number }> = [];
@@ -243,25 +197,23 @@ export default function App() {
     } else if (type === "avg") {
       title = "Comments near average sentiment";
       const avg =
-        scoredWindowed.reduce((a, b) => a + b.adjusted, 0) / (scoredWindowed.length || 1);
+        scoredWindowed.reduce((a, b) => a + b.adjusted, 0) / (scoredWindowed.length || 1)
       itemsX = scoredWindowed
         .sort((a, b) => Math.abs(a.adjusted - avg) - Math.abs(b.adjusted - avg))
         .slice(0, 20)
-        .map((r) => ({ author: r.authorDisplayName, text: r.textOriginal, score: r.adjusted }));
+        .map((r) => ({ author: r.authorDisplayName, text: r.textOriginal, score: r.adjusted }))
     }
-    setEvidence({ open: true, title, items: itemsX });
+    setEvidence({ open: true, title, items: itemsX })
   }
 
-  // ----------------------------- Aggregated text corpus -----------------------
   const allTexts = useMemo(
     () => [
       ...items.map((i) => i.textOriginal),
       ...items.flatMap((i) => i.replies?.map((r) => r.textOriginal) || []),
     ],
     [items]
-  );
+  )
 
-  // ------------------------------------ UI -----------------------------------
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <header className="rounded-2xl p-6 header-grad text-white shadow flex items-center justify-between">
@@ -284,35 +236,33 @@ export default function App() {
       {/* Video meta + unified filters */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
         <div className="md:col-span-5">
+          {/* wrapper guarantees the child stretches to cell height */}
           <div className="h-full">
             <VideoMetaCard videoIdOrUrl={lastQuery} />
           </div>
         </div>
 
         <div className="md:col-span-7">
-          {/* Make UnifiedFilters fill available height */}
           <UnifiedFilters
-            className="h-full"
+            className="h-full"               // NEW: make UnifiedFilters fill height
             value={filters}
             onDateChange={(from, to) => setFilters((s) => ({ ...s, from, to }))}
             onCountryChange={(country) => setFilters((s) => ({ ...s, country }))}
             onSubsChange={(min, max) => setFilters((s) => ({ ...s, minSubs: min, maxSubs: max }))}
             onLikesChange={(min, max) => setFilters((s) => ({ ...s, minLikes: min, maxLikes: max }))}
-            onRepliesChange={(min, max) =>
-              setFilters((s) => ({ ...s, minReplies: min, maxReplies: max }))
-            }
+            onRepliesChange={(min, max) => setFilters((s) => ({ ...s, minReplies: min, maxReplies: max }))}
             onClear={() =>
               setFilters((s) => ({
                 ...s,
                 from: minDate,
                 to: maxDate,
                 country: null,
-                minSubs: "",
-                maxSubs: "",
-                minLikes: "",
-                maxLikes: "",
-                minReplies: "",
-                maxReplies: "",
+                minSubs: '',
+                maxSubs: '',
+                minLikes: '',
+                maxLikes: '',
+                minReplies: '',
+                maxReplies: '',
               }))
             }
           />
@@ -341,6 +291,7 @@ export default function App() {
         </>
       ) : (
         <>
+          {/* Charts & KPIs reflect ONLY the global unified filters */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <MetricsPanel rows={scoredWindowed as any} onEvidence={openEvidence} />
             <SentimentPie rows={scoredWindowed as any} />
@@ -359,6 +310,7 @@ export default function App() {
             </div>
           )}
 
+          {/* Comments table now owns its sentiment chips */}
           <CommentsTable rows={scoredWindowed as any} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

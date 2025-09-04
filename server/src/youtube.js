@@ -1,55 +1,16 @@
 /**
- * -----------------------------------------------------------------------------
  * YouTube REST helpers — v12 (enriched)
- * -----------------------------------------------------------------------------
- * ROLE
- *   Centralized data access layer for the YouTube Data API v3. This module:
- *   - Fetches comment threads and FULL reply trees for a single video.
- *   - Enriches authors (parent + replies) with channel country + subscribers.
- *   - Fetches single-video metadata and derives UX-friendly KPIs.
- *
- * WHY CENTRALIZE
- *   Keeping API shape normalization and pagination/rate-limit concerns here
- *   prevents HTTP handlers and UI code from duplicating fragile logic.
- *
- * SHAPE GUARANTEES
- *   fetchAllComments(videoId, key) returns an array of normalized "parent"
- *   comment objects:
- *     {
- *       id, textOriginal, likeCount, authorDisplayName,
- *       authorChannelId, authorCountry, authorSubscriberCount,
- *       publishedAt, totalReplyCount,
- *       replies: Array<{
- *         id, textOriginal, likeCount, authorDisplayName,
- *         authorChannelId, authorCountry, authorSubscriberCount,
- *         publishedAt
- *       }>
- *     }
- *
- * NOTABLE DECISIONS
- *   - Replies: We DO NOT trust `commentThreads.list(..., part=replies)` alone;
- *     YouTube only returns a small preview (~5). We detect undercount and then
- *     page all replies via `comments.list(parentId, maxResults=100)` until
- *     nextPageToken is exhausted.
- *   - Enrichment: We batch unique author channel IDs in chunks of 50 (API max)
- *     and join country + subscriberCount. Subscriber counts may be hidden; we
- *     normalize to `null` in that case.
- *   - Throttling: Each page fetch optionally sleeps `throttleMs` to be a good
- *     API citizen and to make quota consumption predictable during dev.
- *
- * QUOTA / COST NOTES
- *   - commentThreads.list: 1 unit per call
- *   - comments.list:       1 unit per call
- *   - channels.list:       1 unit per call
- *   Tight loops include a small throttle and chunking to smooth usage.
- *
- * CAVEATS
- *   - Country is channel-level, not a per-comment geolocation, and is often
- *     unset by creators. Treat as a best-effort signal.
- *   - Video likeCount/commentCount may be missing when disabled; we emit null.
- * -----------------------------------------------------------------------------
+ * WHAT:
+ *   - Extracts comments & replies
+ *   - Enriches unique authors via channels.list to get country + subscriberCount
+ *   - Enriched single video metadata with contentDetails + channel stats + derived metrics
+ * WHY:
+ *   - Enables country/subs filters across charts & tables
+ *   - Exposes richer VideoMetaCard KPIs (duration, age, engagement, channel totals)
+ * NOTES:
+ *   - Country is channel-level, not per-comment location. It's often blank.
+ *   - subscriberCount may be hidden; we emit null in that case.
  */
-
 import axios from "axios";
 const YT_API = "https://www.googleapis.com/youtube/v3";
 
@@ -57,12 +18,7 @@ const YT_API = "https://www.googleapis.com/youtube/v3";
 /* Utilities                                                                 */
 /* ------------------------------------------------------------------------- */
 
-/**
- * Parse ISO8601 duration (PT#H#M#S) into total seconds.
- * @param {string | null | undefined} iso
- * @returns {number | null} total seconds or null if unknown/invalid
- * Implementation: simple regex capture; absent components default to 0.
- */
+/** Parse ISO8601 duration (PT#H#M#S) into total seconds; returns null if unknown. */
 function isoDurationToSeconds(iso) {
   if (!iso) return null;
   const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -73,16 +29,6 @@ function isoDurationToSeconds(iso) {
   return h * 3600 + mi * 60 + s;
 }
 
-/**
- * Normalize a YouTube input (URL or bare 11-char ID) to a canonical ID.
- * Accepts:
- *   - 11 char video IDs
- *   - https://www.youtube.com/watch?v=...
- *   - https://youtu.be/...
- *   - Embedded or other path variants where the last segment is an ID.
- * @param {string} input
- * @returns {string|null} normalized 11-char ID or null when unparseable
- */
 export function parseVideoId(input) {
   try {
     if (!input) return null;
@@ -103,14 +49,7 @@ export function parseVideoId(input) {
 /* Channel enrichment for authors (used by comments)                         */
 /* ------------------------------------------------------------------------- */
 
-/**
- * Batch-fetch channel metadata for author enrichment.
- * Input may contain duplicates and falsy values; we uniq + filter first.
- * Chunk size is 50 (YouTube API max).
- * @param {string[]} channelIds
- * @param {string} API_KEY
- * @returns {Map<string, {country: string|null, subscriberCount: number|null}>}
- */
+/** Batch-fetch channel metadata for author enrichment. */
 async function fetchChannelsMeta(channelIds, API_KEY) {
   const uniq = Array.from(new Set(channelIds)).filter(Boolean);
   const meta = new Map();
@@ -137,21 +76,13 @@ async function fetchChannelsMeta(channelIds, API_KEY) {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Replies pagination (child comments under a parent)                        */
+/* Replies pagination (child comments under a parent)                         */
 /* ------------------------------------------------------------------------- */
 
 /**
- * Fetch *all* replies for a given parent comment using comments.list.
- * We request 100 per page (API max) and follow nextPageToken to completion.
- * A small sleep between pages (throttleMs) reduces burstiness/quota spikes.
- *
- * @param {string} parentId
- * @param {string} API_KEY
- * @param {number} throttleMs polite delay between page fetches (default 200)
- * @returns {Array<{
- *   id:string, textOriginal:string, likeCount:number,
- *   authorDisplayName:string, authorChannelId:string|null, publishedAt:string
- * }>}
+ * Fetches *all* replies for a given parent comment ID using comments.list.
+ * Returns a normalized array suitable for direct attachment to the parent.
+ * The throttle aligns with the rest of the pipeline to be a good API citizen.
  */
 async function fetchAllRepliesForParent(parentId, API_KEY, throttleMs = 200) {
   const out = [];
@@ -184,33 +115,12 @@ async function fetchAllRepliesForParent(parentId, API_KEY, throttleMs = 200) {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Comments pipeline                                                         */
+/* Comments pipeline                                                          */
 /* ------------------------------------------------------------------------- */
 
 /**
- * Pull all comment threads and attach FULL reply sets.
- * We also collect unique author channel IDs for enrichment in one pass.
- *
- * Pagination:
- *   - commentThreads.list(videoId, maxResults=100)
- *   - Continue while nextPageToken exists and pages < maxPages.
- *
- * Reply hydration:
- *   - Start from any preview replies included on the thread object.
- *   - If preview length < totalReplyCount, page all replies via comments.list
- *     and replace the preview with the full array (simplifies dedup logic).
- *
- * Progress:
- *   - Optional callback receives { fetchedPages, totalPages } so the client can
- *     render "page X / Y". totalPages is estimated from pageInfo on the first
- *     response; it may be 0 if not exposed.
- *
- * @param {string} videoId
- * @param {string} API_KEY
- * @param {number} maxPages hard safety cap to avoid infinite loops
- * @param {(p:{fetchedPages:number,totalPages:number})=>void} [onProgress]
- * @param {number} throttleMs polite delay between page fetches
- * @returns {Array<Object>} normalized parents with enriched replies (see header)
+ * Pull all commentThreads and attach full reply sets.
+ * onProgress receives page counters so the UI can render “page x / y”.
  */
 export async function fetchAllComments(
   videoId,
@@ -249,7 +159,7 @@ export async function fetchAllComments(
     const topChan = top.authorChannelId?.value || null;
     if (topChan) channelIds.add(topChan);
 
-    // Seed with any preview replies YouTube embedded on the thread…
+    // Start with any preview replies YouTube embedded on the thread…
     let replies = Array.isArray(t.replies?.comments)
       ? t.replies.comments.map((c) => {
           const sn = c.snippet;
@@ -266,8 +176,9 @@ export async function fetchAllComments(
         })
       : [];
 
-    // …then hydrate fully if totalReplyCount suggests we are truncated.
+    // …and if the thread reports more than we currently have, page all replies.
     if ((t.snippet.totalReplyCount || 0) > replies.length) {
+      // Replace with the full set (avoids duplicate merging logic).
       replies = await fetchAllRepliesForParent(topId, API_KEY, throttleMs);
       for (const r of replies) if (r.authorChannelId) channelIds.add(r.authorChannelId);
     }
@@ -284,7 +195,7 @@ export async function fetchAllComments(
     });
   }
 
-  // Enrich authors with country + subscriberCount (for parents and replies).
+  // Enrich authors with country + subscriberCount as before…
   const metaMap = await fetchChannelsMeta(Array.from(channelIds), API_KEY);
   for (const item of normalized) {
     const m = item.authorChannelId ? metaMap.get(item.authorChannelId) : null;
@@ -304,19 +215,6 @@ export async function fetchAllComments(
 /* Enriched single-video metadata                                            */
 /* ------------------------------------------------------------------------- */
 
-/**
- * Fetch a video's core metadata, channel stats, and derive UX KPIs.
- * This powers the "Video Meta" card (duration, age, engagement rates, etc.).
- *
- * Rates computed:
- *   engagementRate = (likes + comments) / views     (null if views = 0)
- *   likeRate       = likes / views                  (null if missing)
- *   commentRate    = comments / views               (null if missing)
- *
- * @param {string} videoId
- * @param {string} API_KEY
- * @returns {object|null} normalized metadata object or null if not found
- */
 export async function fetchVideoMeta(videoId, API_KEY) {
   // 1) Fetch video core fields + content details
   const { data: vData } = await axios.get(`${YT_API}/videos`, {

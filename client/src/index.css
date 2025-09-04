@@ -1,30 +1,10 @@
-/* =============================================================================
-   Global styles (Tailwind + theme tokens + component utilities)
-   -----------------------------------------------------------------------------
-   PURPOSE
-   - Provide a cohesive theming system (light/dark + optional "neon"/"cosmic")
-     via CSS custom properties (`--surface`, `--text`, etc.)
-   - Layer tasteful, performant backgrounds for visual identity.
-   - Ship a small set of reusable utilities (cards, chips, badges, tables).
-   NOTES
-   - Do NOT remove or rename selectors; downstream components rely on them.
-   - Ordering is intentional to preserve cascade/overrides.
-   ========================================================================== */
-
-/* Tailwind layers (keep order) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* --------------------------------------------------------------------------
-   Base document defaults
-   -------------------------------------------------------------------------- */
 :root { color-scheme: light dark; }
-
-/* Techy background with subtle color fields and grid (initial definition).
-   NOTE: There is a later `body.page-bg` block that refines backgrounds by theme.
-   Keep both; later rules may override parts of this. */
 .page-bg {
+  /* Techy background with subtle color fields and grid */
   background:
     radial-gradient(1200px 600px at 100% -10%, rgba(124,58,237,0.15), transparent 60%),
     radial-gradient(1000px 500px at -10% 0%, rgba(239,68,68,0.12), transparent 60%),
@@ -35,27 +15,24 @@
   min-height: 100vh;
 }
 
-/* Reusable component primitives ------------------------------------------------ */
 .card { @apply bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow border border-white/30 dark:border-gray-700/40; }
 .card-ghost { @apply bg-white/20 dark:bg-gray-800/30 animate-pulse rounded-2xl; }
-
 .btn { @apply rounded-xl px-4 py-2 font-semibold transition; }
 .btn-primary { @apply text-white; background-image: linear-gradient(135deg, #ef4444 0%, #7c3aed 100%); }
 .btn-primary:hover { filter: brightness(1.06); }
-
 .header-grad { background-image: linear-gradient(135deg, #ef4444 0%, #0f172a 100%); }
-
 .table-wrap { @apply overflow-auto max-h-[60vh]; }
 .wrap-anywhere { overflow-wrap: anywhere; word-break: break-word; }
-
 .badge { @apply inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-black font-bold; }
 
-/* === Extra Themes ============================================================
- * Theme toggles via classes on <html>:
- * - .theme-neon  : vibrant multicolor + glass cards
- * - .theme-cosmic: deep space gradient + purple glow cards
- * These co-exist with Tailwind's `.dark` class for dark-mode utilities.
- * --------------------------------------------------------------------------- */
+
+/* === Extra Themes =======================================================
+ * We scope custom backgrounds and card styling by toggling classes on <html>:
+ *   - .theme-neon  : vibrant multicolor + translucent glass cards
+ *   - .theme-cosmic: deep space gradient + purple glow cards
+ * The rest of the app continues to use Tailwind 'dark:' variants when .dark
+ * is present, so these themes co-exist with existing utility classes.
+ */
 
 /* Neon: instagram-like multicolor with glassmorphism */
 html.theme-neon body.page-bg {
@@ -88,13 +65,17 @@ html.theme-cosmic .card {
   box-shadow: 0 30px 80px rgba(88,28,135,0.35);
 }
 
+
+
 /* ==========================================================================
-   Theme tokens (CSS variables) — base + per-theme overrides
+   Theme tokens (CSS variables)
    --------------------------------------------------------------------------
+   We derive a consistent look across components by reading colors from vars.
    - Base (light) lives at :root
    - Dark overrides under html.dark
    - Neon overrides under html.theme-neon
-   Components read from these tokens for surfaces, text, borders, and charts.
+   All cards, text, and charts respond to these variables so the entire UI
+   changes cohesively when a theme is toggled.
    ========================================================================== */
 :root{
   --bg: #e5e7eb;                 /* overall background */
@@ -109,7 +90,7 @@ html.theme-cosmic .card {
   --chart-3: #10b981; /* emerald */
 }
 
-/* Light (base) background and text.  Note: this refines the earlier `.page-bg`. */
+/* Light (base) background and text */
 body.page-bg{
   margin: 0;
   color: var(--text);
@@ -150,11 +131,119 @@ html.dark body.page-bg{
 }
 
 /* ------------------------------- Neon -----------------------------------
-   Multicolor instagram-like gradient + glass cards. Text becomes darker for
-   legibility; chart palette shifts to brighter tones.
+   Multicolor instagram-like gradient + glass cards. Notice text becomes dark
+   for legibility, and chart palette shifts to brighter tones.
 --------------------------------------------------------------------------- */
 html.theme-neon{
-  /* Accent tokens */
+  --bg: #0b1220;       /* used as base under the gradient stack */
+  --text: #0b1220;
+  --surface: rgba(255,255,255,0.58);
+  --border: rgba(255,255,255,0.65);
+  --shadow: 0 24px 60px rgba(0,0,0,0.16);
+
+  --chart-1: #ff7ac3;  /* bright pink */
+  --chart-2: #ffa84d;  /* warm orange */
+  --chart-3: #22d3ee;  /* cyan */
+}
+html.theme-neon body.page-bg{
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(255,122,122,0.35), transparent 60%),
+    radial-gradient(1000px 600px at 95% 0%, rgba(255,184,108,0.35), transparent 60%),
+    radial-gradient(900px 500px at 30% 100%, rgba(34,211,238,0.30), transparent 60%),
+    radial-gradient(1000px 600px at 90% 100%, rgba(122,229,130,0.30), transparent 60%),
+    radial-gradient(1000px 600px at 0% 50%, rgba(178,141,255,0.30), transparent 60%),
+    #f7f9ff;
+}
+html.theme-neon .card{
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+/* Keep neon film layers under modals */
+html.theme-neon body.page-bg::before,
+html.theme-neon body.page-bg::after {
+  z-index: 0; /* explicit */
+}
+
+
+/* ----------- Utility to wrap long comment text regardless of theme ------- */
+.wrap-anywhere{ overflow-wrap: anywhere; }
+
+
+
+/* ==========================================================================
+   Contrast + component tokens
+   We expand the token set so form controls, table headers, and "chips" read
+   from theme variables across Light/Dark/Neon.
+   ========================================================================== */
+:root{
+  --muted: #64748b;              /* secondary text */
+  --label: #334155;              /* form labels */
+  --input-bg: #ffffff;           /* fields */
+  --input-border: #dbe2ea;
+  --chip-bg: #eef2f7;            /* generic pill background */
+  --chip-text: #0f172a;
+}
+
+/* Textured, more pronounced light background */
+body.page-bg{
+  background:
+    radial-gradient(700px 400px at 10% 0%, rgba(99,102,241,0.12), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(236,72,153,0.12), transparent 60%),
+    radial-gradient(1200px 700px at 50% 100%, rgba(16,185,129,0.12), transparent 60%),
+}
+
+/* Form controls & labels that pick up the theme */
+label{ color: var(--label); }
+input, select, textarea{
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--input-border);
+}
+input::placeholder, textarea::placeholder{
+  color: var(--muted);
+  opacity: 0.85;
+}
+
+/* Table header contrast */
+table thead th{
+  color: var(--text);
+  background: color-mix(in lab, var(--surface) 92%, #000 8%);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Generic chip style (used by keywords & badges) */
+.chip{
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  border: 1px solid color-mix(in lab, var(--chip-bg) 70%, #000 30%);
+}
+
+/* ------------------------------- Dark ----------------------------------- */
+html.dark{
+  --text: #f3f4f6;
+  --muted: #cbd5e1;
+  --label: #e5e7eb;
+  --surface: rgba(24,32,56,0.88);             /* more opaque for contrast */
+  --input-bg: rgba(14,23,42,0.92);            /* darker field for separation */
+  --input-border: rgba(148,163,184,0.35);
+  --chip-bg: rgba(148,163,184,0.18);
+  --chip-text: #e5e7eb;
+}
+html.dark body.page-bg{
+  background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(99,102,241,0.30), transparent 60%),
+    radial-gradient(1000px 600px at 100% 0%, rgba(236,72,153,0.28), transparent 60%),
+    radial-gradient(1200px 700px at 0% 100%, rgba(16,185,129,0.26), transparent 60%),
+    #070b17;
+}
+
+/* ====================== NEON: hyper-vibrant background ====================== */
+html.theme-neon{
+  /* Accent tokens (tweak to taste) */
   --neon-pink:   #ff4fd8;
   --neon-cyan:   #22d3ee;
   --neon-orange: #ffa84d;
@@ -270,6 +359,7 @@ html.theme-neon .card{
 
 /* TopWords chips use .chip class (see component patch) */
 
+
 /* Ensure TopWords chips keep the same grey background in all themes */
 .topword-chip {
   background-color: #f3f4f6; /* gray-100 */
@@ -295,161 +385,3 @@ html.modal-open body.page-bg::after {
 html.theme-neon body.page-bg::before,
 html.theme-neon body.page-bg::after { z-index: 0; }
 
-/* ----------- Utility to wrap long comment text regardless of theme ------- */
-.wrap-anywhere{ overflow-wrap: anywhere; }
-
-/* ==========================================================================
-   Contrast + component tokens (forms, tables, generic chips)
-   - These extend the token set used by components beyond surface/text.
-   ========================================================================== */
-:root{
-  --muted: #64748b;              /* secondary text */
-  --label: #334155;              /* form labels */
-  --input-bg: #ffffff;           /* fields */
-  --input-border: #dbe2ea;
-  --chip-bg: #eef2f7;            /* generic pill background */
-  --chip-text: #0f172a;
-}
-
-/* Textured, more pronounced light background (refines body.page-bg further) */
-body.page-bg{
-  background:
-    radial-gradient(700px 400px at 10% 0%, rgba(99,102,241,0.12), transparent 60%),
-    radial-gradient(900px 500px at 90% 0%, rgba(236,72,153,0.12), transparent 60%),
-    radial-gradient(1200px 700px at 50% 100%, rgba(16,185,129,0.12), transparent 60%),
-}
-
-/* Form controls & labels that pick up the theme */
-label{ color: var(--label); }
-input, select, textarea{
-  background: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--input-border);
-}
-input::placeholder, textarea::placeholder{
-  color: var(--muted);
-  opacity: 0.85;
-}
-
-/* Table header contrast */
-table thead th{
-  color: var(--text);
-  background: color-mix(in lab, var(--surface) 92%, #000 8%);
-  border-bottom: 1px solid var(--border);
-}
-
-/* Generic chip style (used by keywords & badges) */
-.chip{
-  background: var(--chip-bg);
-  color: var(--chip-text);
-  border: 1px solid color-mix(in lab, var(--chip-bg) 70%, #000 30%);
-}
-
-/* ------------------------------- Dark (forms/chips) ---------------------- */
-html.dark{
-  --text: #f3f4f6;
-  --muted: #cbd5e1;
-  --label: #e5e7eb;
-  --surface: rgba(24,32,56,0.88);             /* more opaque for contrast */
-  --input-bg: rgba(14,23,42,0.92);            /* darker field for separation */
-  --input-border: rgba(148,163,184,0.35);
-  --chip-bg: rgba(148,163,184,0.18);
-  --chip-text: #e5e7eb;
-}
-html.dark body.page-bg{
-  background:
-    radial-gradient(1200px 600px at 20% 0%, rgba(99,102,241,0.30), transparent 60%),
-    radial-gradient(1000px 600px at 100% 0%, rgba(236,72,153,0.28), transparent 60%),
-    radial-gradient(1200px 700px at 0% 100%, rgba(16,185,129,0.26), transparent 60%),
-    #070b17;
-}
-
-/* ====================== NEON (forms/chips) =============================== */
-html.theme-neon{
-  /* Accent tokens (tweak to taste) */
-  --neon-pink:   #ff4fd8;
-  --neon-cyan:   #22d3ee;
-  --neon-orange: #ffa84d;
-  --neon-lime:   #7dfc65;
-  --neon-violet: #b07cff;
-
-  /* Text & surfaces for readability on loud bg */
-  --text: #0b1220;
-  --muted: #21314f;
-  --label: #0b1220;
-
-  --surface: rgba(255,255,255,0.72);
-  --border:  rgba(255,255,255,0.65);
-  --shadow:  0 24px 60px rgba(0,0,0,0.18);
-
-  --input-bg:     rgba(255,255,255,0.92);
-  --input-border: rgba(0,0,0,0.15);
-
-  /* Chart palette stays bright */
-  --chart-1: var(--neon-pink);
-  --chart-2: var(--neon-orange);
-  --chart-3: var(--neon-cyan);
-}
-
-/* Layered neon background (forms/chips section keeps base behavior) */
-html.theme-neon body.page-bg{
-  position: relative;
-  background:
-    /* Wide neon beams */
-    linear-gradient(115deg, rgba(255,168,77,0.24), transparent 55%),
-    linear-gradient(245deg, rgba(34,211,238,0.20), transparent 50%),
-    linear-gradient(25deg,  rgba(176,124,255,0.18), transparent 60%),
-
-    /* Soft multicolor blobs */
-    radial-gradient(1200px 600px at 6%  -10%, color-mix(in oklab, var(--neon-pink) 35%, transparent), transparent 60%),
-    radial-gradient(1100px 600px at 96% -6%,  color-mix(in oklab, var(--neon-orange) 35%, transparent), transparent 60%),
-    radial-gradient(900px  520px at 32% 102%, color-mix(in oklab, var(--neon-cyan) 32%, transparent),  transparent 60%),
-    radial-gradient(900px  520px at 84% 104%, color-mix(in oklab, var(--neon-lime) 28%, transparent),  transparent 60%),
-    radial-gradient(1100px 640px at 0%  60%,  color-mix(in oklab, var(--neon-violet) 32%, transparent),transparent 60%),
-
-    /* Subtle grid */
-    repeating-linear-gradient(0deg,   rgba(255,255,255,0.06) 0 1px, transparent 1px 24px),
-    repeating-linear-gradient(90deg,  rgba(255,255,255,0.06) 0 1px, transparent 1px 24px),
-
-    /* Base */
-    #0a0f1f;
-  min-height: 100vh;
-  /* REMOVE the old: overflow: hidden; */
-  overflow-x: clip;
-  overflow-y: auto;
-  min-height: 100dvh;
-}
-
-html.theme-neon body.page-bg::before{ /* (duplicate intentional for grouping) */
-  content: "";
-  position: fixed;
-  inset: -10%;
-  pointer-events: none;
-  mix-blend-mode: screen;
-  filter: blur(40px) saturate(120%);
-  opacity: 0.45;
-  background:
-    conic-gradient(
-      from 180deg at 50% 50%,
-      color-mix(in oklab, var(--neon-pink) 55%,   transparent) 0deg,
-      color-mix(in oklab, var(--neon-orange) 55%, transparent) 72deg,
-      color-mix(in oklab, var(--neon-cyan) 55%,   transparent) 144deg,
-      color-mix(in oklab, var(--neon-lime) 55%,   transparent) 216deg,
-      color-mix(in oklab, var(--neon-violet) 55%, transparent) 288deg,
-      color-mix(in oklab, var(--neon-pink) 55%,   transparent) 360deg
-    );
-  animation: neon-sweep 18s linear infinite;
-}
-html.theme-neon body.page-bg::after{
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(100% 160% at 50% 120%, rgba(0,0,0,0) 0%, rgba(0,0,0,0.25) 60%, rgba(0,0,0,0.55) 100%);
-  mix-blend-mode: multiply;
-}
-
-/* Keep neon film layers under modals */
-html.theme-neon body.page-bg::before,
-html.theme-neon body.page-bg::after { z-index: 0; }

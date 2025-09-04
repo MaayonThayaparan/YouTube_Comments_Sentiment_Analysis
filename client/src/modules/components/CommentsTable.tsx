@@ -1,42 +1,9 @@
-/**
- * CommentsTable
- * -----------------------------------------------------------------------------
- * PURPOSE
- *   Paginated, filterable, sortable view of scored YouTube comments with
- *   responsive layouts:
- *     - Mobile: stacked cards (compact, readable on small screens)
- *     - Desktop: data table (sortable columns)
- *
- *   Also wires the RepliesModal for per-thread exploration.
- *
- * KEY DECISIONS
- *   - Mobile card background uses theme tokens:
- *       bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
- *     so Dark/Neon stay visually consistent with the rest of the app.
- *   - Meta “chips” (country / subs / likes / replies) are forced to the same
- *     light-grey bubble and dark text across *all* themes using Tailwind `!`
- *     modifiers. This matches your requirement that bubbles look identical in
- *     light/dark/neon.
- *   - Sentiment filtering uses the same buckets as elsewhere via SentimentChips.
- *   - Sorting is stable and type-aware (strings via localeCompare, numbers
- *     numerically) and falls back gracefully when values are null/undefined.
- *
- * INTERACTION
- *   - Inline search filters on the original text.
- *   - SentimentChips filter the visible set before sorting/pagination.
- *   - “Show Replies” opens RepliesModal with the parent & its replies.
- *
- * NON-FUNCTIONAL NOTE
- *   We only add comments and structure for clarity; no business logic changed.
- */
-
 import React from 'react'
 import { type ScoredRow } from '../../utils/scoring'
 import { colorForScore } from '../../utils/colors'
 import { RepliesModal } from './RepliesModal'
 import { SentimentChips, type SentimentBucket } from './SentimentChips'
 
-/** Sortable column keys for the desktop table. */
 type SortKey =
   | 'adjusted'
   | 'authorDisplayName'
@@ -48,8 +15,8 @@ type SortKey =
 type SortDir = 'asc' | 'desc'
 
 /** Small “meta chip” used in the mobile cards.
- *  Design: fixed light-grey bg + black text across all themes (light/dark/neon).
- *  The `!` modifiers win over any theme overrides.
+ * Design: fixed light-grey bg + black text across all themes (light/dark/neon).
+ * The `!` modifiers win over any theme overrides.
  */
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -62,7 +29,7 @@ function Chip({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** One comment card for mobile layout (used below when md:hidden). */
+/** One comment card for mobile layout. */
 function MobileCommentCard({
   r,
   onShowReplies,
@@ -81,7 +48,7 @@ function MobileCommentCard({
         bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
       "
     >
-      {/* Top row: score pill + author/date + “Replies” button */}
+      {/* Top row: Score + Author + Date */}
       <div className="flex items-start justify-between gap-3">
         <span
           className={`inline-block px-2 py-1 rounded-lg border ${c.bg} ${c.text} ${c.border}`}
@@ -102,7 +69,7 @@ function MobileCommentCard({
         </button>
       </div>
 
-      {/* Meta chips (theme-locked light grey bubbles) */}
+      {/* Meta chips */}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Chip>{r.authorCountry || '—'}</Chip>
         <Chip>Subs: {r.authorSubscriberCount ?? '—'}</Chip>
@@ -110,7 +77,7 @@ function MobileCommentCard({
         <Chip>Replies: {r.totalReplyCount}</Chip>
       </div>
 
-      {/* Collapsible text (line-clamp for compactness) */}
+      {/* Text */}
       <div className={`mt-2 text-sm whitespace-pre-wrap ${expanded ? '' : 'line-clamp-3'}`}>
         {r.textOriginal}
       </div>
@@ -128,18 +95,14 @@ function MobileCommentCard({
 }
 
 export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: boolean }) {
-  // Replies modal state (parent + its replies are passed through)
   const [open, setOpen] = React.useState<{ show: boolean; parent: any; replies: any[] }>({
     show: false,
     parent: null,
     replies: [],
   })
-
-  // Pagination controls
   const [page, setPage] = React.useState(1)
   const pageSize = 30
 
-  // Sorting & text search
   const [sortKey, setSortKey] = React.useState<SortKey>('adjusted')
   const [sortDir, setSortDir] = React.useState<SortDir>('desc')
   const [fText, setFText] = React.useState('')
@@ -147,12 +110,11 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
   // Local-only sentiment chips
   const [bucket, setBucket] = React.useState<SentimentBucket>('all')
 
-  // Reset to page 1 when filters/sort/search change to avoid empty pages.
   React.useEffect(() => {
     setPage(1)
   }, [fText, sortKey, sortDir, bucket])
 
-  // 1) Sentiment bucket filter, then 2) case-insensitive text search
+  // Filter by chips + search
   const filtered = rows
     .filter((r) => {
       const s = r.adjusted
@@ -167,7 +129,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
     })
     .filter((r) => !fText || r.textOriginal.toLowerCase().includes(fText.toLowerCase()))
 
-  // Stable sort that handles strings vs numbers and nulls safely.
+  // Sort
   const sorted = React.useMemo(() => {
     const out = [...filtered]
     out.sort((a, b) => {
@@ -185,12 +147,10 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
     return out
   }, [filtered, sortKey, sortDir])
 
-  // Pagination slice
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const start = (page - 1) * pageSize
   const visible = sorted.slice(start, start + pageSize)
 
-  // Column header button with sort toggling
   function header(label: string, key: SortKey) {
     const active = sortKey === key
     const arrow = active ? (sortDir === 'asc' ? '▲' : '▼') : ''
@@ -312,7 +272,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         </table>
       </div>
 
-      {/* Pagination controls */}
+      {/* Pagination */}
       <div className="flex items-center justify-between mt-3">
         <div className="text-xs text-gray-500">
           Page {page} / {totalPages}
@@ -337,7 +297,6 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         </div>
       </div>
 
-      {/* Replies modal (shares chip/score styling with Leaderboard/Evidence) */}
       <RepliesModal
         open={open.show}
         onClose={() => setOpen({ show: false, parent: null, replies: [] })}
