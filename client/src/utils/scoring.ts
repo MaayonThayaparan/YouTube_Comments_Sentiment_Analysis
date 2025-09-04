@@ -20,8 +20,7 @@ export function computeAdjustedScores(items:ThreadItem[], weights:Weights): Scor
         const Lr = normalizeLikes(r.likeCount || 0, maxReplyLikes)
         return Sr * (0.5 + 0.5*Lr)
       })
-      const mean = vals.reduce((a,b)=>a+b,0) / vals.length
-      return mean
+      return vals.reduce((a,b)=>a+b,0) / vals.length
     })()
     const adjusted = clamp(weights.wComment * base + weights.wLikes * likeAdj + weights.wReplies * replyAggregate, -1, 1)
     return { ...i, base, adjusted }

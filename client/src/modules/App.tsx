@@ -10,6 +10,10 @@ import { ModelSelector } from './components/ModelSelector'
 import { ExportPanel } from './components/ExportPanel'
 import { TimeSeriesChart } from './components/TimeSeriesChart'
 import { VideoMetaCard } from './components/VideoMetaCard'
+import { TimeWindow } from './components/TimeWindow'
+import { TopKeywords } from './components/TopKeywords'
+import { Leaderboard } from './components/Leaderboard'
+import { EvidenceModal } from './components/EvidenceModal'
 import { computeAdjustedScores, type ThreadItem } from '../utils/scoring'
 
 type Weights = { wComment:number; wLikes:number; wReplies:number }
@@ -19,11 +23,21 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [weights, setWeights] = useState<Weights>({ wComment: 1.0, wLikes: 0.7, wReplies: 1.0 })
-  const [model, setModel] = useState<string>('llama3-free')
+  const [model, setModel] = useState<string>('vader')
+  const [lastModelUsed, setLastModelUsed] = useState<string>('vader')
   const [apiKey, setApiKey] = useState<string>('')
   const [jobId, setJobId] = useState<string>('')
   const [progress, setProgress] = useState<{totalPages:number,fetchedPages:number,totalTexts:number,scoredTexts:number}|null>(null)
   const [lastQuery, setLastQuery] = useState<string>('')
+  const [evidence, setEvidence] = useState<{ open:boolean, title:string, items:Array<{author:string,text:string,score?:number}> }>({ open:false, title:'', items:[] })
+
+  const modelDirty = !!items.length && model !== lastModelUsed
+
+  const allDates = useMemo(()=> items.map(i=>(i.publishedAt||'').slice(0,10)).filter(Boolean).sort(), [items])
+  const minDate = allDates[0] || '2006-01-01'
+  const maxDate = allDates[allDates.length-1] || new Date().toISOString().slice(0,10)
+  const [window, setWindow] = useState<{from:string,to:string}>({ from: minDate, to: maxDate })
+  useEffect(()=>{ setWindow({ from: minDate, to: maxDate }) }, [minDate, maxDate])
 
   useEffect(() => {
     if (!loading || !jobId) return
@@ -51,6 +65,7 @@ export default function App() {
       const data = await res.json()
       if (!res.ok) throw new Error(data?.error || "Failed")
       setItems(data.items)
+      setLastModelUsed(model)
     } catch (e: any) {
       setError(e.message || 'Failed to fetch')
     } finally {
@@ -58,40 +73,92 @@ export default function App() {
     }
   }
 
-  const scored = useMemo(() => computeAdjustedScores(items, weights), [items, weights])
+  const scoredAll = useMemo(() => computeAdjustedScores(items, weights), [items, weights])
+  const scored = useMemo(() => {
+    return scoredAll.filter(r => {
+      const d = (r.publishedAt || '').slice(0,10)
+      return (!window.from || d >= window.from) && (!window.to || d <= window.to)
+    })
+  }, [scoredAll, window])
+
   const progressPct = progress && progress.totalTexts > 0 ? Math.floor((progress.scoredTexts / progress.totalTexts) * 100) : 0
+
+  function openEvidence(type:string){
+    let title = 'Evidence'
+    let itemsX: Array<{author:string,text:string,score?:number}> = []
+    if (type === 'pos') {
+      title = 'Positive sample comments'
+      itemsX = scored.filter(r=>r.adjusted>0.4).slice(0,20).map(r=>({author:r.authorDisplayName,text:r.textOriginal,score:r.adjusted}))
+    } else if (type === 'neg') {
+      title = 'Negative sample comments'
+      itemsX = scored.filter(r=>r.adjusted<-0.4).slice(0,20).map(r=>({author:r.authorDisplayName,text:r.textOriginal,score:r.adjusted}))
+    } else if (type === 'neu') {
+      title = 'Neutral sample comments'
+      itemsX = scored.filter(r=>Math.abs(r.adjusted)<=0.1).slice(0,20).map(r=>({author:r.authorDisplayName,text:r.textOriginal,score:r.adjusted}))
+    } else if (type === 'avg') {
+      title = 'Comments near average sentiment'
+      const avg = scored.reduce((a,b)=>a+b.adjusted,0)/(scored.length||1)
+      itemsX = scored.sort((a,b)=>Math.abs(a.adjusted-avg)-Math.abs(b.adjusted-avg)).slice(0,20).map(r=>({author:r.authorDisplayName,text:r.textOriginal,score:r.adjusted}))
+    }
+    setEvidence({ open:true, title, items: itemsX })
+  }
+
+  const allTexts = useMemo(()=>[...items.map(i=>i.textOriginal), ...items.flatMap(i=>i.replies?.map(r=>r.textOriginal) || [])], [items])
 
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      <header className="rounded-2xl p-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white shadow flex items-center justify-between">
+      <header className="rounded-2xl p-6 header-grad text-white shadow flex items-center justify-between">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">YouTube Comment Sentiment</h1>
       </header>
 
       <div className="lg:col-span-2 space-y-4">
         <URLInput onSubmit={fetchComments} loading={loading} />
-        <ModelSelector model={model} onModelChange={setModel} apiKey={apiKey} onApiKeyChange={setApiKey} />
+        <ModelSelector model={model} onModelChange={setModel} apiKey={apiKey} onApiKeyChange={setApiKey} dirty={modelDirty} />
       </div>
 
       <VideoMetaCard videoIdOrUrl={lastQuery} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <WeightsPanel weights={weights} onChange={setWeights} disabled={loading || !items.length} />
-          {error && <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">{error}</div>}
-          {loading && <div className="text-sm text-gray-500">Fetching… {progress ? `(pages: ${progress.fetchedPages}, scored: ${progress.scoredTexts}/${progress.totalTexts})` : ''}
-            <div className="w-full h-2 bg-gray-200 rounded mt-2"><div className="h-2 bg-purple-600 rounded" style={{ width: `${progressPct}%` }} /></div>
-          </div>}
-          <CommentsTable rows={scored as any} loading={loading} />
-          <ExportPanel rows={scored as any} />
-        </div>
-        <div className="lg:col-span-1 space-y-4">
-          <MetricsPanel rows={scored as any} />
-          <SentimentChart rows={scored as any} />
-          <SentimentPie rows={scored as any} />
-          <TimeSeriesChart rows={scored as any} />
-          <SummaryPanel texts={[...items.map(i=>i.textOriginal), ...items.flatMap(i=>i.replies?.map(r=>r.textOriginal) || [])]} model={model} apiKey={apiKey} />
-        </div>
-      </div>
+      {loading ? (
+        <>
+          <div className="card card-ghost h-28"></div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <div className="card card-ghost h-60"></div>
+              <div className="card card-ghost h-96"></div>
+            </div>
+            <div className="lg:col-span-1 space-y-4">
+              <div className="card card-ghost h-40"></div>
+              <div className="card card-ghost h-80"></div>
+              <div className="card card-ghost h-80"></div>
+              <div className="card card-ghost h-80"></div>
+            </div>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded"><div className="h-2 bg-gradient-to-r from-red-500 via-fuchsia-500 to-indigo-600 rounded" style={{ width: `${progressPct}%` }} /></div>
+        </>
+      ) : (
+        <>
+          <TimeWindow minDate={minDate} maxDate={maxDate} value={window} onChange={setWindow} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <WeightsPanel weights={weights} onChange={setWeights} disabled={!items.length} />
+              {error && <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">{error}</div>}
+              <CommentsTable rows={scored as any} />
+              <ExportPanel rows={scored as any} />
+            </div>
+            <div className="lg:col-span-1 space-y-4">
+              <MetricsPanel rows={scored as any} onEvidence={openEvidence} />
+              <SentimentChart rows={scored as any} />
+              <SentimentPie rows={scored as any} />
+              <TimeSeriesChart rows={scored as any} />
+              <TopKeywords texts={allTexts} />
+              <Leaderboard rows={scored as any} />
+              <SummaryPanel texts={allTexts} model={model} apiKey={apiKey} />
+            </div>
+          </div>
+        </>
+      )}
+
+      <EvidenceModal open={evidence.open} onClose={()=>setEvidence({...evidence, open:false})} title={evidence.title} items={evidence.items} />
     </div>
   )
 }
