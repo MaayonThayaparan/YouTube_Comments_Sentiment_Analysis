@@ -2,22 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global theming */
 :root { color-scheme: light dark; }
-body { @apply text-gray-900 dark:text-gray-100; font-family: theme('fontFamily.sans'); }
+.page-bg {
+  /* Techy background with subtle color fields and grid */
+  background:
+    radial-gradient(1200px 600px at 100% -10%, rgba(124,58,237,0.15), transparent 60%),
+    radial-gradient(1000px 500px at -10% 0%, rgba(239,68,68,0.12), transparent 60%),
+    linear-gradient(180deg, rgba(2,6,23,0.02), rgba(2,6,23,0.02)),
+    repeating-linear-gradient(0deg, rgba(99,102,241,0.05) 0px, rgba(99,102,241,0.05) 1px, transparent 1px, transparent 24px),
+    repeating-linear-gradient(90deg, rgba(99,102,241,0.05) 0px, rgba(99,102,241,0.05) 1px, transparent 1px, transparent 24px),
+    #0b1220;
+  min-height: 100vh;
+}
 
-/* Cards: glassy, modern */
-.card { @apply bg-white/60 dark:bg-gray-800/50 backdrop-blur-xl rounded-2xl shadow border border-white/40 dark:border-gray-700/40; }
-.card-ghost { @apply bg-white/30 dark:bg-gray-800/30 animate-pulse rounded-2xl; }
-
-/* Buttons */
+.card { @apply bg-white/70 dark:bg-gray-900/70 rounded-2xl shadow border border-white/30 dark:border-gray-700/40; }
+.card-ghost { @apply bg-white/20 dark:bg-gray-800/30 animate-pulse rounded-2xl; }
 .btn { @apply rounded-xl px-4 py-2 font-semibold transition; }
-.btn-primary { @apply text-white; background-image: theme('backgroundImage.cta'); }
+.btn-primary { @apply text-white; background-image: linear-gradient(135deg, #ef4444 0%, #7c3aed 100%); }
 .btn-primary:hover { filter: brightness(1.06); }
-
-/* Header gradient */
-.header-grad { background-image: theme('backgroundImage.yt-head'); }
-
-/* Tables */
+.header-grad { background-image: linear-gradient(135deg, #ef4444 0%, #0f172a 100%); }
 .table-wrap { @apply overflow-auto max-h-[60vh]; }
 .wrap-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+.badge { @apply inline-flex items-center justify-center w-5 h-5 rounded-full bg-yellow-400 text-black font-bold; }

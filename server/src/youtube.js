@@ -1,22 +1,21 @@
 /**
- * YouTube REST helpers
- * --------------------
- * WHAT: Thin wrappers over YouTube Data API v3 endpoints for videos, commentThreads and comments.
- * WHY: We centralize HTTP flows + normalization here so other modules can be purely about scoring.
+ * YouTube REST helpers — v11
+ * WHAT:
+ *   - Extracts comments & replies
+ *   - Enriches unique authors via channels.list to get country + subscriberCount
+ * WHY:
+ *   - Enables country/subs filters across charts & tables
  * NOTES:
- *  - `fetchAllComments` paginates commentThreads and (if necessary) replies via the `comments` endpoint.
- *  - We expose `throttleMs` to respect API quotas and avoid accidental burst traffic.
+ *   - Country is channel-level, not per-comment location. It's often blank.
+ *   - subscriberCount may be hidden; we emit null in that case.
  */
 import axios from "axios"
 const YT_API = "https://www.googleapis.com/youtube/v3"
 
-/** Extract a canonical 11-char YouTube videoId from either a raw ID or any watch/share URL. */
 export function parseVideoId(input){
   try{
     if(!input) return null
-    // Raw 11-character ID
     if(/^[a-zA-Z0-9_-]{11}$/.test(input)) return input
-    // URL cases (youtu.be short, youtube.com with v param, last path segment fallback)
     const url = new URL(input)
     if(url.hostname.includes("youtu.be")) return url.pathname.slice(1)
     if(url.searchParams.get("v")) return url.searchParams.get("v")
@@ -27,69 +26,89 @@ export function parseVideoId(input){
   }catch{ return null }
 }
 
+/** Batch-fetch channel metadata for author enrichment. */
+async function fetchChannelsMeta(channelIds, API_KEY){
+  const uniq = Array.from(new Set(channelIds)).filter(Boolean)
+  const meta = new Map()
+  for (let i=0;i<uniq.length;i+=50){
+    const batch = uniq.slice(i, i+50)
+    const {data} = await axios.get(`${YT_API}/channels`, {
+      params: { key: API_KEY, id: batch.join(','), part: 'snippet,statistics' }
+    })
+    for (const c of (data.items||[])){
+      const id = c.id
+      const sn = c.snippet || {}
+      const st = c.statistics || {}
+      meta.set(id, {
+        country: sn.country || null,
+        subscriberCount: st.hiddenSubscriberCount ? null : (st.subscriberCount ? Number(st.subscriberCount) : null)
+      })
+    }
+  }
+  return meta
+}
+
 /**
- * Fetch all top-level comments + replies.
- * We first download commentThreads (includes some replies). If reported reply count
- * exceeds the embedded list, we paginate the remaining replies via the /comments endpoint.
- * We normalize each item to a stable shape the client expects.
+ * Pull all commentThreads (+remaining replies via /comments when needed).
+ * onProgress gets page counters so UI can render "page x/y".
  */
 export async function fetchAllComments(videoId,API_KEY,maxPages=200,onProgress,throttleMs=Number(process.env.YT_THROTTLE_MS||200)){
-  const allThreads=[]; let pageToken=undefined; let pages=0
+  const allThreads=[]; let pageToken=undefined; let pages=0; let totalPages=0
   do{
     const {data}=await axios.get(`${YT_API}/commentThreads`,{params:{key:API_KEY,part:"snippet,replies",videoId,maxResults:100,pageToken}})
-    pages++; onProgress && onProgress({ fetchedPages: pages })
+    if(!totalPages){
+      const totalResults = Number(data?.pageInfo?.totalResults||0)
+      const per = Number(data?.pageInfo?.resultsPerPage||100) || 100
+      totalPages = totalResults ? Math.ceil(totalResults / per) : 0
+    }
+    pages++; onProgress && onProgress({ fetchedPages: pages, totalPages })
     for(const item of (data.items||[])) allThreads.push(item)
     pageToken = data.nextPageToken || undefined
     if(throttleMs) await new Promise(r=>setTimeout(r,throttleMs))
   }while(pageToken && pages<maxPages)
 
-  const normalized=[]
+  // Normalize and collect channelIds for enrichment
+  const normalized=[]; const channelIds=new Set()
   for(const t of allThreads){
     const top=t.snippet.topLevelComment.snippet
-    const totalReplyCount=t.snippet.totalReplyCount||0
+    const topChan = top.authorChannelId?.value || null
+    if (topChan) channelIds.add(topChan)
     let replies=[]
-    // replies that arrive embedded on commentThreads
     if(t.replies && Array.isArray(t.replies.comments)){
-      replies=t.replies.comments.map(c=>({
-        id:c.id,
-        textOriginal:c.snippet.textOriginal,
-        likeCount:c.snippet.likeCount||0,
-        authorDisplayName:c.snippet.authorDisplayName,
-        publishedAt:c.snippet.publishedAt
-      }))
-    }
-    // if API reports more replies than embedded, paginate the rest
-    if(totalReplyCount>replies.length){
-      let replyPageToken=undefined
-      do{
-        const {data}=await axios.get(`${YT_API}/comments`,{params:{key:API_KEY,part:"snippet",parentId:t.snippet.topLevelComment.id,maxResults:100,pageToken:replyPageToken}})
-        replyPageToken=data.nextPageToken||undefined
-        for(const c of (data.items||[])){
-          replies.push({
-            id:c.id,
-            textOriginal:c.snippet.textOriginal,
-            likeCount:c.snippet.likeCount||0,
-            authorDisplayName:c.snippet.authorDisplayName,
-            publishedAt:c.snippet.publishedAt
-          })
-        }
-        if(throttleMs) await new Promise(r=>setTimeout(r,throttleMs))
-      }while(replyPageToken)
+      replies=t.replies.comments.map(c=>{
+        const sn=c.snippet
+        const ch=sn.authorChannelId?.value || null
+        if (ch) channelIds.add(ch)
+        return { id:c.id, textOriginal:sn.textOriginal, likeCount:sn.likeCount||0, authorDisplayName:sn.authorDisplayName, authorChannelId: ch, publishedAt:sn.publishedAt }
+      })
     }
     normalized.push({
       id:t.snippet.topLevelComment.id,
       textOriginal:top.textOriginal,
       likeCount:top.likeCount||0,
       authorDisplayName:top.authorDisplayName,
+      authorChannelId: topChan,
       publishedAt:top.publishedAt,
-      totalReplyCount,
+      totalReplyCount:t.snippet.totalReplyCount||0,
       replies
     })
+  }
+
+  // Enrich authors with country + subscriberCount
+  const metaMap = await fetchChannelsMeta(Array.from(channelIds), API_KEY)
+  for (const item of normalized){
+    const m = item.authorChannelId ? metaMap.get(item.authorChannelId) : null
+    item.authorCountry = m?.country || null
+    item.authorSubscriberCount = (m?.subscriberCount ?? null)
+    for (const r of item.replies){
+      const rm = r.authorChannelId ? metaMap.get(r.authorChannelId) : null
+      r.authorCountry = rm?.country || null
+      r.authorSubscriberCount = (rm?.subscriberCount ?? null)
+    }
   }
   return normalized
 }
 
-/** Lightweight metadata for the video card (thumbnail, channel, counts, link). */
 export async function fetchVideoMeta(videoId,API_KEY){
   const{data}=await axios.get(`${YT_API}/videos`,{params:{key:API_KEY,id:videoId,part:"snippet,statistics"}})
   const item=(data.items&&data.items[0])||null

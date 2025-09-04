@@ -13,5 +13,5 @@ export function SummaryPanel({ texts, model, apiKey }:{ texts:string[], model:st
       setSummary('Failed to summarize. Ensure Ollama/OpenAI is reachable, or switch models.')
     }finally{ setLoading(false) }
   }
-  return (<div className="card p-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">AI Sentiment Summary</h3><button onClick={run} disabled={loading||!texts.length} className="btn btn-primary disabled:opacity-50">{loading?'Summarizing…':'Summarize'}</button></div><div className="mt-3 text-sm whitespace-pre-wrap">{summary||'Click Summarize to generate a short overview of the comments.'}</div></div>)
+  return (<div className="card p-4"><div className="flex items-center justify-between"><h3 className="text-lg font-semibold">AI Sentiment Summary</h3><button onClick={run} disabled={loading||!texts.length} className="btn btn-primary disabled:opacity-50">{loading?'Summarizing…':'Summarize'}</button></div><div className="mt-3 text-sm whitespace-pre-wrap">{summary||(!texts.length?'No Data':'Click Summarize to generate a short overview of the comments.')}</div></div>)
 }

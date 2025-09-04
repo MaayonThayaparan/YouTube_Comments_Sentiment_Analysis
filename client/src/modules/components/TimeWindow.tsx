@@ -1,9 +1,3 @@
-/**
- * TimeWindow (compact)
- * --------------------
- * WHAT: Two date pickers that gate charts/tables.
- * WHY: Small enough to sit above the charts so the "front and center" area is concise.
- */
 import React from 'react'
 export function TimeWindow({ minDate, maxDate, value, onChange }:{ minDate:string, maxDate:string, value:{from:string,to:string}, onChange:(v:{from:string,to:string})=>void }){
   return (

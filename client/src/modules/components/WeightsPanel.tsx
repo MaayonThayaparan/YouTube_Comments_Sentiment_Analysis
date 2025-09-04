@@ -1,9 +1,3 @@
-/**
- * WeightsPanel
- * ------------
- * WHAT: Three sliders to control how much each component contributes to the adjusted score.
- * WHY: Exposes the scoring philosophy to users and enables experimentation without re-fetching.
- */
 import React from 'react'
 type Weights = { wComment:number; wLikes:number; wReplies:number }
 export function WeightsPanel({ weights, onChange, disabled }:{ weights:Weights, onChange:(w:Weights)=>void, disabled?:boolean }){

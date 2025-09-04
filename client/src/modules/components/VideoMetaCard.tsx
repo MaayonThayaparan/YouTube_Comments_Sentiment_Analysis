@@ -23,9 +23,10 @@ export function VideoMetaCard({ videoIdOrUrl }: Props){
     return ()=>{ cancelled=true }
   }, [videoIdOrUrl])
 
+  if (!videoIdOrUrl) return <div className="card p-4 text-center text-gray-500">No Data</div>
   if (loading) return <div className="card card-ghost p-4 h-28"></div>
   if (error) return <div className="card p-4 text-red-600">Video info error: {error}</div>
-  if (!meta) return null
+  if (!meta) return <div className="card p-4 text-center text-gray-500">No Data</div>
   const thumb = meta.thumbnails?.high?.url || meta.thumbnails?.medium?.url || meta.thumbnails?.default?.url
   return (
     <a href={meta.url} target="_blank" rel="noreferrer" className="block card overflow-hidden hover:shadow-lg transition">

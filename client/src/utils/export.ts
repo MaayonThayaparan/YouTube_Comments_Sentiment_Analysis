@@ -1,15 +1,10 @@
-/**
- * CSV export helpers
- * WHAT: Convert scored rows to CSV and trigger a browser download.
- * WHY: Lightweight utility; avoids external libs for a simple task.
- */
 export function toCSV(rows: any[]) {
   if (!rows?.length) return ''
-  const headers = ['id','authorDisplayName','likeCount','totalReplyCount','base','adjusted','textOriginal','publishedAt']
+  const headers = ['id','authorDisplayName','authorCountry','authorSubscriberCount','likeCount','totalReplyCount','base','adjusted','textOriginal','publishedAt']
   const escape = (v:any) => { if (v == null) return ''; const s = String(v).replace(/"/g, '""'); return `"${s}"` }
   const lines = [headers.join(',')]
   for (const r of rows) {
-    const vals = [ r.id, r.authorDisplayName, r.likeCount, r.totalReplyCount, r.base?.toFixed?.(4) ?? '', r.adjusted?.toFixed?.(4) ?? '', r.textOriginal, r.publishedAt ]
+    const vals = [ r.id, r.authorDisplayName, r.authorCountry ?? '', r.authorSubscriberCount ?? '', r.likeCount, r.totalReplyCount, r.base?.toFixed?.(4) ?? '', r.adjusted?.toFixed?.(4) ?? '', r.textOriginal, r.publishedAt ]
     lines.push(vals.map(escape).join(','))
   }
   return lines.join('\n')
