@@ -1,15 +1,76 @@
 <!doctype html>
+<!--
+  -----------------------------------------------------------------------------
+  index.html — App Shell (Vite entry)
+  -----------------------------------------------------------------------------
+  PURPOSE
+    Minimal HTML shell for the React SPA. Vite uses this file as the single
+    entry point during dev and injects the built assets in production.
+
+  KEY DECISIONS
+    - Preconnect to Google Fonts domains to reduce TLS/DNS latency for Inter.
+    - Load Inter weights 300/400/600/700 once, globally (keeps bundle slim).
+    - Theme is class-driven: `dark:` variants are toggled by the `dark` class
+      on <html> or <body> (Tailwind). We keep the shell neutral, styling lives
+      in the app CSS/Tailwind utilities.
+    - Single mount node (#root); no server-side templating here.
+
+  COLLABORATION NOTES
+    - If you add additional webfonts or analytics, prefer <link rel="preconnect">
+      for their origins, and keep scripts `type="module"` when possible.
+    - Avoid inline styles/scripts for CSP hygiene; configure CSP in the server
+      if deploying to stricter environments.
+  -----------------------------------------------------------------------------
+-->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      Responsive layout on mobile; required for Tailwind’s responsive breakpoints.
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YouTube Sentiment</title>
+
+    <!--
+      PERFORMANCE: Font loading
+      - Preconnect warms up TLS to Google Fonts endpoints.
+      - `crossorigin` is required on the gstatic preconnect per Google guidance.
+    -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!--
+      Inter font family
+      - Chosen as the primary UI face (also set in tailwind.config).
+      - Weights: 300/400/600/700 to cover body, semibold labels, and headings.
+      - Display strategy defaults to `swap` for minimal FOIT per Google API.
+    -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    >
   </head>
+
+  <!--
+    BODY CLASSES
+      - `page-bg` is a project-level class (defined in app CSS) that hooks
+        into CSS variables (e.g., --surface) to provide themeable backgrounds.
+      - `text-gray-900 dark:text-gray-100` sets a sane default foreground color
+        that flips in dark mode; components can override locally.
+  -->
   <body class="page-bg text-gray-900 dark:text-gray-100">
+    <!--
+      React mount point: the SPA renders here from src/main.tsx.
+      Keep this element empty; hydration/bootstrapping is handled by Vite/React.
+    -->
     <div id="root"></div>
+
+    <!--
+      ENTRY SCRIPT
+        - Vite resolves this ESM entry in dev (HMR enabled).
+        - In production, Vite rewrites this to built assets in dist/.
+        - Keep as `type="module"`; avoid legacy script loaders unless required.
+    -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

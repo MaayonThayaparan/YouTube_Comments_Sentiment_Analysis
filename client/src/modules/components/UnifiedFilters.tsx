@@ -1,60 +1,89 @@
+/**
+ * =============================================================================
+ * UnifiedFilters — global time + meta filters bar (staff developer notes)
+ * =============================================================================
+ * PURPOSE
+ *   Provide a single, compact control surface for global filters that affect
+ *   all downstream charts/tables:
+ *     • Date range (from/to)
+ *     • Country (channel-level enrichment)
+ *     • Numeric ranges for subscribers, likes, replies
+ *
+ * LAYOUT STRATEGY
+ *   - Mobile-first single column; upgrades to a 3-col grid on small screens.
+ *   - On very wide screens (xl), an explicit 12-col grid lets us allocate
+ *     more span to longer controls (Date/Subs) so labels and full dates fit.
+ *
+ * STATE OWNERSHIP
+ *   - The component is fully controlled: `value` in, granular callbacks out.
+ *   - Parent owns canonical state; this component never mutates it directly.
+ *
+ * ACCESSIBILITY & UX
+ *   - Paired min/max inputs are rendered inside one bordered wrapper to signal
+ *     that they’re a logical unit and to streamline keyboard tabbing.
+ *   - All inputs read theme tokens via CSS variables for consistent theming.
+ *
+ * EXTENSION POINTS
+ *   - Add per-field validation (e.g., swap min/max if inverted) in the parent.
+ *   - Country list is provided as `countryOptions`; keep it de-duped upstream.
+ *
+ * NOTE
+ *   - There is an extraneous string inside a className below ("lets go") which
+ *     looks accidental and has no functional effect; leave as-is per the
+ *     “comments-only” directive, but consider removing in a future code-only PR.
+ * =============================================================================
+ */
 import React from "react";
 
-/**
- * UnifiedFilters
- * ---------------------------------------------------------------------------
- * A compact, two–row filter bar that merges time window + global filters.
- *
- * Layout goals:
- *  - Mobile (default) .......... 1 column stack (readable on phones)
- *  - Small/Medium (sm/md/lg) ... 3 equal columns per row
- *  - Wide screens (xl and up) .. 12-col grid with wider spans for Date/Subs
- *                                 so full date text fits comfortably.
- *
- * Row 1 (xl):
- *   [Date Range span=5] | [Subscribers span=4] | [Country span=3]
- * Row 2 (xl):
- *   [Likes span=4]      | [Replies span=4]     | [Clear span=3 (right)]
- *
- * Visual affordances:
- *  - Paired min/max inputs are wrapped together so users see they’re related.
- *  - All controls read theme tokens from CSS variables for consistent theming.
- */
-
 export type UnifiedFiltersState = {
+  /** ISO date (YYYY-MM-DD) lower bound, inclusive. */
   from: string;
+  /** ISO date (YYYY-MM-DD) upper bound, inclusive. */
   to: string;
+
+  /** Channel country (nullable = any). */
   country: string | null;
+  /** Available country list (precomputed upstream for performance). */
   countryOptions: string[];
 
+  /** Subscribers: string to allow empty input; parent parses as needed. */
   minSubs: string;
   maxSubs: string;
+
+  /** Likes: string to allow empty input; parent parses as needed. */
   minLikes: string;
   maxLikes: string;
+
+  /** Replies: string to allow empty input; parent parses as needed. */
   minReplies: string;
   maxReplies: string;
 };
 
 type Props = {
+  /** Current filter state (controlled). */
   value: UnifiedFiltersState;
 
+  /** Emit new date window (from, to) when either picker changes. */
   onDateChange: (from: string, to: string) => void;
+  /** Emit new country or null for “Any”. */
   onCountryChange: (country: string | null) => void;
 
+  /** Numeric range updaters (kept stringly-typed for empty handling). */
   onSubsChange: (min: string, max: string) => void;
   onLikesChange: (min: string, max: string) => void;
   onRepliesChange: (min: string, max: string) => void;
 
+  /** Clear all fields back to parent-provided defaults. */
   onClear: () => void;
 };
 
 /**
  * RangeGroup
- * Small helper that renders a "Min | Max" pair inside a single bordered box.
- * This provides:
- *  - Visual grouping (users understand min/max belong together)
- *  - Keyboard efficiency (tab once to jump from min to max)
- *  - A single hit area that feels like a composite control
+ * ----------
+ * Binds a (min,max) numeric pair into a single bordered control for better
+ * visual grouping and keyboard traversal. This component is intentionally
+ * dumb: it renders whatever strings it’s given and delegates parsing/validation
+ * to the parent, which owns the canonical filter state.
  */
 function RangeGroup({
   label,
@@ -98,6 +127,12 @@ function RangeGroup({
   );
 }
 
+/**
+ * UnifiedFilters (component)
+ * --------------------------
+ * Renders two responsive rows of inputs. All callbacks are passed through to
+ * the parent; there is no local state here by design.
+ */
 export function UnifiedFilters({
   value,
   onDateChange,
@@ -122,20 +157,21 @@ export function UnifiedFilters({
 
   return (
     <div className="card p-4 h-full flex flex-col">
-      {/* 
+      {/*
         === ROW 1 ============================================================
         Default → 1 col (mobile)
         sm/lg  → 3 equal cols (space efficient)
         xl     → 12-col grid to allow wider spans for Date + Subs
       */}
-      <div className="
+      <div
+        className="
           grid gap-4 mb-3
           grid-cols-1 lets go 
           sm:grid-cols-3
           xl:grid-cols-12
         "
       >
-        {/* Date Range: */}
+        {/* Date Range */}
         <div className="xl:col-span-5 sm:col-span-1">
           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
             Date Range
@@ -156,7 +192,7 @@ export function UnifiedFilters({
           </div>
         </div>
 
-        {/* Subscribers: */}
+        {/* Subscribers */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Subscribers"
@@ -168,7 +204,7 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Country: */}
+        {/* Country */}
         <div className="xl:col-span-2 sm:col-span-1">
           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
             Country
@@ -188,18 +224,19 @@ export function UnifiedFilters({
         </div>
       </div>
 
-      {/* 
+      {/*
         === ROW 2 ============================================================
         Same responsive logic; xl uses 12-col spans so Clear can be narrower.
       */}
-      <div className="
+      <div
+        className="
           grid gap-4
           grid-cols-1 
           sm:grid-cols-3
           xl:grid-cols-12
         "
       >
-        {/* Likes: xl */}
+        {/* Likes */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Likes"
@@ -211,7 +248,7 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Replies: */}
+        {/* Replies */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Replies"
@@ -223,7 +260,7 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Clear button:  */}
+        {/* Clear button */}
         <div className="xl:col-span-2 sm:col-span-1 flex items-end">
           <button
             type="button"
@@ -236,7 +273,7 @@ export function UnifiedFilters({
           </button>
         </div>
 
-        {/* Spacer on xl to complete the 12 columns (5+4+3 / 4+4+3 leaves 1) */}
+        {/* Spacer on xl to complete the 12 columns (see header notes) */}
         <div className="hidden xl:block xl:col-span-1" />
       </div>
     </div>
