@@ -3,7 +3,7 @@ import { tfidfTopOverall } from '../../utils/text'
 import { type ScoredRow } from '../../utils/scoring'
 function Section({ title, words }:{title:string, words:{term:string, score:number}[]}){
   if(!words?.length) return <div className="text-gray-500">No Data</div>
-  return (<div><div className="font-semibold mb-2">{title}</div><div className="flex flex-wrap gap-2 text-sm">{words.map(k => <span key={k.term} className="px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">{k.term}</span>)}</div></div>)
+  return (<div><div className="font-semibold mb-2">{title}</div><div className="flex flex-wrap gap-2 text-sm">{words.map(k => <span key={k.term} className="topword-chip px-2 py-1 rounded-lg border text-gray-800 dark:text-gray-200">{k.term}</span>)}</div></div>)
 }
 export function TopWords({ rows }:{ rows: ScoredRow[] }){
   const { all, pos, neg } = useMemo(()=>{
