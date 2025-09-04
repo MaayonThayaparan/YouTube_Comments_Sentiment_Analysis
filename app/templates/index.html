@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Comments Sentiment Analysis</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- External CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='/css/styles.css') }}">
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</head>
+
+<body class="container mt-5">
+    <div class="jumbotron text-center bg-dark text-white">
+        <h1 class="display-4"><b>YouTube Comments Sentiment Analysis</b></h1>
+        <p class="lead"><br>Since YouTube removed the dislike bar, it has become harder to tell the sentiment of a video.
+            Use this tool to determine the sentiment of the video based on the comments and AI analysis.</p>
+    </div>
+
+
+    <div class="row justify-content-center">
+        <div class="col-md-6 ">
+            <div class="container bg-light p-5 rounded text-center">
+                <form method="post" id="submit" onsubmit="urlParser(event)">
+                    <div class="form-group">
+                        <label class="h4" for="text">Enter YouTube URL</label>
+                        <input type="text" class="form-control" id="text" name="text" required>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" type="button" data-toggle="collapse" data-target="#checkboxFields" aria-expanded="false" aria-controls="checkboxFields">
+                            Additional Options
+                        </button>
+                    </div>
+
+                    <div class="collapse mt-2" id="checkboxFields">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="showLikeInputCheckbox" onchange="toggleLikeInput()">
+                            <label class="form-check-label h6" for="showLikeInputCheckbox" data-toggle="tooltip" data-placement="top" 
+                                title="Enabling this checkbox will incorporate total likes per comment in determining the sentiment of each top-level comment. 
+                                If 'Incorporate Reply Sentiments?' is also ticked, reply likes will also be weighed."> Incorporate Likes?<i class="bi bi-info-circle"></i></label>
+                        </div>
+                        <div id="likeInputContainer" style="display: none;">
+                            <label for="likeInput">Like Weight:</label>
+                            <input type="number" step="0.1" class="form-control text-center col-6 offset-3" id="likeInput" value="0" name="likeInput" data-toggle="tooltip"        data-placement="top"
+                                title="The number inputted will be multiplied by the number of likes per comment to determine the comment sentiment.(Ex. If comment sentiment is 2, comment has 5 likes, and 'Like Weight' is set 0.5, then the overall comment sentiment will be 2 x 5 x 0.5 = 5)">
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="showReplyInputCheckbox" onchange="toggleReplyInput()">
+                            <label class="form-check-label h6" for="showReplyInputCheckbox" data-toggle="tooltip" data-placement="top"
+                                title="Enabling this checkbox will incorporate reply sentiments in determining the sentiment of each top-level comment"> Incorporate Reply Sentiment?</label>
+                        </div>
+                        <div id="replyInputContainer" style="display: none;">
+                            <label for="replyInput">Reply Weight:</label>
+                            <input type="number" step="0.1" class="form-control text-center col-6 offset-3" id="replyInput" value="0" name="replyInput" data-toggle="tooltip" data-placement="top"
+                                title="The number inputted will be multiplied with the overall reply sentiment per top-level comment. This reply sentiment is then added to the total comment sentiment. (Ex. If comment sentiment is 2, comment has 1 reply, reply sentiment is 2, and 'Reply Weight' is set to 0.5, then the overall reply sentiment will be 2 + (2 x 0.5) = 3)">
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="showMaxComInputCheckbox" onchange="toggleMaxComInput()">
+                            <label class="form-check-label h6" for="showMaxComInputCheckbox" data-toggle="tooltip" data-placement="top"
+                                title="This checkbox allows you to input a limit on the number of comments searched. This may help runtime for long comment sections"> Limit Comments Analyzed?</label>
+                        </div>
+                        <div id="maxComInputContainer" style="display: none;">
+                            <label for="maxInput">Maximum Comments:</label>
+                            <input type="number" class="form-control text-center col-6 offset-3" id="maxInput" value="0" name="maxInput" data-toggle="tooltip" data-placement="top"
+                                title="Input number to limit the maximum number of comments searched">
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="toggleSectionCheckbox" onchange="toggleSection()" checked>
+                            <label class="form-check-label h6" for="toggleSectionCheckbox" data-toggle="tooltip" data-placement="top"
+                                title="Enabling this checkbox will display the breakdown of each top-level comment on the video at the bottom of the screen (scroll down). Additional columns will display depending on whether you activate checkboxes for 'Incorporate Likes?' or 'Incorporate Reply Sentiment'."> Show Comments Analysis (see bottom)</label>
+                        </div>
+                    </div>
+
+                    <div class="mt-2">
+                        <label class="btn btn-primary text-center">
+                            <input type="radio" name="model" value="watsonnlu" required> IBM Watson
+                        </label>
+                        <label class="btn btn-primary text-center">
+                            <input type="radio" name="model" value="openai" required> OpenAI
+                        </label>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-block mt-2">Submit</button>
+                </form>
+
+            </div>
+        </div>
+    </div>
+
+
+    {% if comments == "INVALID ID" %}
+    <p class="text-center text-danger">
+        You have provided an invalid YouTube url or Video ID. 
+        <br>
+        If YouTube URL is copied direct webpage, try the Video ID directly in input field. 
+    </p>
+
+    {% elif video %}
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card" style="width: 100%;">
+                    <a href={{url}}>
+                        <img class="card-img-top" src="{{video.thumbnail}}" alt="Card image cap">
+                    </a>
+                    <div class="card-body">
+                      <h5 class="card-title">{{video.title}}</h5>
+                      <p class="card-text">
+                        <b>Channel:</b> {{video.channel}} <br>
+                        <b>Views:</b> {{video.views}} <br>
+                        <b>Likes:</b> {{video.likes}} <br>
+                        <b>Favorites:</b> {{video.favorite}} <br>
+                        <b>Comments:</b> {{video.comments}}
+                      </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                {% if comments == "COMMENTS DISABLED" %}
+                <div class="card">
+                    <div class="card-body">
+                      <h4 class="card-title">Overall Comment Sentiment</h4>
+                      <p class="card-text">This video has comments disabled.</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card">
+                    <div class="card-body">
+                        {% if model == "watsonnlu" %}
+                        <h4 class="card-title">Overall Comment Sentiment (IBM Watson)</h4>
+                        {% elif model == "openai" %}
+                        <h4 class="card-title">Overall Comment Sentiment (OpenAI)</h4>
+                        {% endif %}
+                        <br>
+                        <div class="row">
+                            <div class="col-md-4">
+                                {% if comments.total_sentiment_score_weighed > 0 %}
+                                    <img style="max-width:100%;" src="{{url_for('static',filename='/img/positive.png')}}" alt="Positive Sentiment">
+                                {% elif comments.total_sentiment_score_weighed < 0 %}
+                                    <img style="max-width:100%;" src="{{url_for('static',filename='/img/negative.png')}}" alt="Negative Sentiment">
+                                {% elif comments.total_sentiment_score_weighed|int == 0 %}
+                                    <img style="max-width:100%;" src="{{url_for('static',filename='/img/neutral.png')}}" alt="Neutral Sentiment">
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                {% if comments.total_sentiment_score_weighed > 0 %}
+                                <p><b>Label:</b> Positive</p>
+                                {% elif comments.total_sentiment_score_weighed < 0 %}
+                                <p><b>Label:</b> Negative</p>
+                                {% elif comments.total_sentiment_score_weighed == 0 %}
+                                <p><b>Label:</b> Neutral</p>
+                                {% endif %}
+                                <p><b>Sentiment Score:</b> {{'%0.3f'|format(comments.total_sentiment_score)}}</p>
+                                <p><b>Sentiment Score Weighed:</b> {{'%0.3f'|format(comments.total_sentiment_score_weighed)}}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <br>
+    {% endif %}
+
+    {% if comments and comments not in ["INVALID ID","COMMENTS DISABLED"]  %}
+
+    <div class="section" id="commentsTable" style="display:block">
+        <hr class="hr hr-blurry" />
+        <h2 class="text-center">Comments Breakdown</h2>
+        <br>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th class="align-top text-center">Comment</th>
+                    <th class="align-top text-center">Label</th>
+                    <th class="align-top text-center">Score</th>
+                    {% if comments.like_input != 0 %}
+                    <th class="align-top text-center">Like Count</th>
+                    {% endif %}
+                    {% if comments.like_input != 0 or comments.reply_input != 0 %}
+                    <th class="align-top text-center">Score Weighed</th>
+                    {% endif %}
+                    {% if comments.reply_input != 0 %}
+                    <th class="align-top text-center">Replies</th>
+                    <th class="align-top text-center">Reply Label</th>
+                    <th class="align-top text-center">Reply Score</th>
+                    {% if comments.like_input != 0 %}
+                    <th class="align-top text-center">Reply Likes</th>
+                    {% endif %}
+                    <th class="align-top text-center">Reply Score Weighed</th>
+                    {% endif %}
+                    
+                    
+                </tr>
+            </thead>
+            <tbody>
+                {% for key, value in comments.comments.items() %}
+                <tr>
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}">{{ value['comment'] }}</td>
+                    
+    
+                    <!-- Conditionally shows different emoji based on NLU sentiment -->
+                    {% if value['comment_sentiment_score_weighed'] > 0 %}
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='/img/positive.png')}}"></img></td>
+                    
+                    {% elif value['comment_sentiment_score_weighed'] < 0 %}
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='/img/negative.png')}}"></img></td>
+    
+                    {% elif value['comment_sentiment_label']|int == 0 %}
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}"><img style="max-width:25%;" src="{{url_for('static',filename='/img/neutral.png')}}"></img></td>
+                    {% endif %}
+                    
+                    <td rowspan="{{ value.replies|length if value.replies else 1 }}">{{ '%0.3f'|format(value['comment_sentiment_score']) }}</td>
+
+                    {% if comments.like_input != 0 %}
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}" class="text-center">{{ value['likeCount'] }}</td>
+                    {% endif %}
+                    {% if comments.like_input != 0 or comments.reply_input != 0 %}
+                    <td class="text-center" rowspan="{{ value.replies|length if value.replies else 1 }}" class="text-center">{{ '%0.3f'|format(value['comment_sentiment_score_weighed']) }}</td>
+                    {% endif %}
+
+                    {% if comments.reply_input !=0 %}
+                    {% if value.replies %}
+                        {% for reply_key, reply_value in value['replies'].items() %}
+                        <td class="text-center">{{ reply_value['reply'] }}</td>
+    
+                        <!-- Conditionally shows different emoji based on NLU sentiment -->
+                        {% if reply_value['reply_sentiment_score_weighed'] > 0 %}
+                        <td class="text-center"><img style="max-width:25%;" src="{{url_for('static',filename='/img/positive.png')}}"></img></td>
+                        
+                        {% elif reply_value['reply_sentiment_score_weighed'] < 0 %}
+                        <td class="text-center"><img style="max-width:25%;" src="{{url_for('static',filename='/img/negative.png')}}"></img></td>
+    
+                        {% elif reply_value['reply_sentiment_score_weighed']|int == 0 %}
+                        <td class="text-center"><img style="max-width:25%;" src="{{url_for('static',filename='/img/neutral.png')}}"></img></td>
+                        {% endif %}
+    
+                        <td class="text-center">{{ '%0.3f'|format(reply_value['reply_sentiment_score']) }}</td>
+                        {% if comments.like_input != 0 %}
+                        <td class="text-center">{{ reply_value['reply_likeCount'] }}</td>
+                        {% endif %}
+                        <td class="text-center">{{ '%0.3f'|format(reply_value['reply_sentiment_score_weighed']) }}</td>
+                        </tr>
+                        <tr>
+                        {% endfor %}
+                    {% else %}
+                        <td colspan="3">No replies</td>
+                        </tr>
+                    {% endif %}
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Bootstrap JS and jQuery -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+</body>
+</html>
