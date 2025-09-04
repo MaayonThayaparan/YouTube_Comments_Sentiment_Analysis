@@ -1,4 +1,4 @@
-# YouTube Comment Sentiment Analyzer — v12
+# YouTube Comment Sentiment Analyzer
 
 ## What’s new
 - **Theme toggle** (auto/light/dark)
