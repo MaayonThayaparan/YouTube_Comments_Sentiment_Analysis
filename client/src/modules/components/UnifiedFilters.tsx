@@ -3,49 +3,102 @@ import React from "react";
 /**
  * UnifiedFilters
  * ---------------------------------------------------------------------------
- * This component merges the concerns of the previous TimeWindow + GlobalFilters
- * into a single, horizontally-compact bar that can sit next to VideoMetaCard
- * on desktop. On small screens it naturally stacks (Tailwind grid).
+ * A compact, two–row filter bar that merges time window + global filters.
  *
- * Design notes (staff-level rationale):
- * - All fields are controlled from the parent (App) to keep a single source of
- *   truth for filtering state. This simplifies cache invalidation and makes it
- *   obvious what triggers recomputation of charts/tables.
- * - We keep each filter's onChange as a narrow callback (one responsibility)
- *   instead of passing a giant "setFilters" to avoid accidental partial updates.
- * - The layout uses a 12-column grid so we can keep consistent spacing with
- *   other modules and easily tune breakpoints without rewriting markup.
+ * Layout goals:
+ *  - Mobile (default) .......... 1 column stack (readable on phones)
+ *  - Small/Medium (sm/md/lg) ... 3 equal columns per row
+ *  - Wide screens (xl and up) .. 12-col grid with wider spans for Date/Subs
+ *                                 so full date text fits comfortably.
+ *
+ * Row 1 (xl):
+ *   [Date Range span=5] | [Subscribers span=4] | [Country span=3]
+ * Row 2 (xl):
+ *   [Likes span=4]      | [Replies span=4]     | [Clear span=3 (right)]
+ *
+ * Visual affordances:
+ *  - Paired min/max inputs are wrapped together so users see they’re related.
+ *  - All controls read theme tokens from CSS variables for consistent theming.
  */
 
 export type UnifiedFiltersState = {
-  // time
-  from: string; // ISO yyyy-mm-dd
-  to: string;   // ISO yyyy-mm-dd
-
-  // audience / geo
+  from: string;
+  to: string;
   country: string | null;
   countryOptions: string[];
 
-  // numeric ranges
-  minSubs?: number | "";
-  maxSubs?: number | "";
-  minLikes?: number | "";
-  maxLikes?: number | "";
-  minReplies?: number | "";
-  maxReplies?: number | "";
+  minSubs: string;
+  maxSubs: string;
+  minLikes: string;
+  maxLikes: string;
+  minReplies: string;
+  maxReplies: string;
 };
 
 type Props = {
   value: UnifiedFiltersState;
-  onDateChange: (fromISO: string, toISO: string) => void;
+
+  onDateChange: (from: string, to: string) => void;
   onCountryChange: (country: string | null) => void;
-  onSubsChange: (min: number | "", max: number | "") => void;
-  onLikesChange: (min: number | "", max: number | "") => void;
-  onRepliesChange: (min: number | "", max: number | "") => void;
+
+  onSubsChange: (min: string, max: string) => void;
+  onLikesChange: (min: string, max: string) => void;
+  onRepliesChange: (min: string, max: string) => void;
+
   onClear: () => void;
 };
 
-export const UnifiedFilters: React.FC<Props> = ({
+/**
+ * RangeGroup
+ * Small helper that renders a "Min | Max" pair inside a single bordered box.
+ * This provides:
+ *  - Visual grouping (users understand min/max belong together)
+ *  - Keyboard efficiency (tab once to jump from min to max)
+ *  - A single hit area that feels like a composite control
+ */
+function RangeGroup({
+  label,
+  min,
+  max,
+  onChange,
+  placeholderMin,
+  placeholderMax,
+}: {
+  label: string;
+  min: string;
+  max: string;
+  onChange: (min: string, max: string) => void;
+  placeholderMin: string;
+  placeholderMax: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+        {label}
+      </label>
+
+      {/* One bordered container that holds both fields for clear pairing */}
+      <div className="flex border rounded-lg bg-[var(--input-bg)] border-[var(--input-border)]">
+        <input
+          inputMode="numeric"
+          className="w-1/2 px-2 py-2 bg-transparent text-[var(--text)] outline-none"
+          placeholder={placeholderMin}
+          value={min}
+          onChange={(e) => onChange(e.target.value, max)}
+        />
+        <input
+          inputMode="numeric"
+          className="w-1/2 px-2 py-2 bg-transparent text-[var(--text)] outline-none border-l border-[var(--input-border)]"
+          placeholder={placeholderMax}
+          value={max}
+          onChange={(e) => onChange(min, e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function UnifiedFilters({
   value,
   onDateChange,
   onCountryChange,
@@ -53,133 +106,139 @@ export const UnifiedFilters: React.FC<Props> = ({
   onLikesChange,
   onRepliesChange,
   onClear,
-}) => {
-  // Local helpers keep the JSX lean and readable.
-  const handleDate = (field: "from" | "to") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = { ...value, [field]: e.target.value };
-    onDateChange(next.from, next.to);
-  };
-
-  const numOrEmpty = (s: string) => (s === "" ? "" : Number(s));
+}: Props) {
+  const {
+    from,
+    to,
+    country,
+    countryOptions,
+    minSubs,
+    maxSubs,
+    minLikes,
+    maxLikes,
+    minReplies,
+    maxReplies,
+  } = value;
 
   return (
-    <div
-      className="
-        card p-4
-        grid grid-cols-12 gap-3 items-end
-        /* Mobile: stack; md+: compact inline bar */
-      "
-      aria-label="Filters"
-    >
-      {/* Dates */}
-      <div className="col-span-12 md:col-span-3">
-        <label className="block text-xs font-medium mb-1">From</label>
-        <input
-          type="date"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.from}
-          onChange={handleDate("from")}
-        />
-      </div>
-      <div className="col-span-12 md:col-span-3">
-        <label className="block text-xs font-medium mb-1">To</label>
-        <input
-          type="date"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.to}
-          onChange={handleDate("to")}
-        />
+    <div className="card p-4 h-full flex flex-col">
+      {/* 
+        === ROW 1 ============================================================
+        Default → 1 col (mobile)
+        sm/lg  → 3 equal cols (space efficient)
+        xl     → 12-col grid to allow wider spans for Date + Subs
+      */}
+      <div className="
+          grid gap-4 mb-3
+          grid-cols-1 lets go 
+          sm:grid-cols-3
+          xl:grid-cols-12
+        "
+      >
+        {/* Date Range: */}
+        <div className="xl:col-span-5 sm:col-span-1">
+          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+            Date Range
+          </label>
+          <div className="flex border rounded-lg bg-[var(--input-bg)] border-[var(--input-border)]">
+            <input
+              type="date"
+              className="w-1/2 px-2 py-2 bg-transparent text-[var(--text)] outline-none"
+              value={from}
+              onChange={(e) => onDateChange(e.target.value, to)}
+            />
+            <input
+              type="date"
+              className="w-1/2 px-2 py-2 bg-transparent text-[var(--text)] outline-none border-l border-[var(--input-border)]"
+              value={to}
+              onChange={(e) => onDateChange(from, e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Subscribers: */}
+        <div className="xl:col-span-5 sm:col-span-1">
+          <RangeGroup
+            label="Subscribers"
+            min={minSubs}
+            max={maxSubs}
+            placeholderMin="Min"
+            placeholderMax="Max"
+            onChange={onSubsChange}
+          />
+        </div>
+
+        {/* Country: */}
+        <div className="xl:col-span-2 sm:col-span-1">
+          <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
+            Country
+          </label>
+          <select
+            className="w-full rounded-lg border px-2 py-2 bg-[var(--input-bg)] text-[var(--text)] border-[var(--input-border)]"
+            value={country ?? ""}
+            onChange={(e) => onCountryChange(e.target.value || null)}
+          >
+            <option value="">Any</option>
+            {countryOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Country */}
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Country</label>
-        <select
-          className="w-full rounded-lg px-3 py-2"
-          value={value.country ?? ""}
-          onChange={(e) => onCountryChange(e.target.value || null)}
-        >
-          <option value="">Any</option>
-          {value.countryOptions.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* 
+        === ROW 2 ============================================================
+        Same responsive logic; xl uses 12-col spans so Clear can be narrower.
+      */}
+      <div className="
+          grid gap-4
+          grid-cols-1 
+          sm:grid-cols-3
+          xl:grid-cols-12
+        "
+      >
+        {/* Likes: xl */}
+        <div className="xl:col-span-5 sm:col-span-1">
+          <RangeGroup
+            label="Likes"
+            min={minLikes}
+            max={maxLikes}
+            placeholderMin="Min"
+            placeholderMax="Max"
+            onChange={onLikesChange}
+          />
+        </div>
 
-      {/* Subs (min / max) */}
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Min subscribers</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          placeholder="e.g., 1000"
-          value={value.minSubs ?? ""}
-          onChange={(e) => onSubsChange(numOrEmpty(e.target.value as any), value.maxSubs ?? "")}
-        />
-      </div>
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Max subscribers</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          placeholder="e.g., 100000"
-          value={value.maxSubs ?? ""}
-          onChange={(e) => onSubsChange(value.minSubs ?? "", numOrEmpty(e.target.value as any))}
-        />
-      </div>
+        {/* Replies: */}
+        <div className="xl:col-span-5 sm:col-span-1">
+          <RangeGroup
+            label="Replies"
+            min={minReplies}
+            max={maxReplies}
+            placeholderMin="Min"
+            placeholderMax="Max"
+            onChange={onRepliesChange}
+          />
+        </div>
 
-      {/* Likes (min / max) */}
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Min likes</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.minLikes ?? ""}
-          onChange={(e) => onLikesChange(numOrEmpty(e.target.value as any), value.maxLikes ?? "")}
-        />
-      </div>
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Max likes</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.maxLikes ?? ""}
-          onChange={(e) => onLikesChange(value.minLikes ?? "", numOrEmpty(e.target.value as any))}
-        />
-      </div>
+        {/* Clear button:  */}
+        <div className="xl:col-span-2 sm:col-span-1 flex items-end">
+          <button
+            type="button"
+            className="btn btn-primary w-full"
+            onClick={onClear}
+            // Avoid overlap with neighboring inputs at tight widths.
+            aria-label="Clear all filters"
+          >
+            Clear
+          </button>
+        </div>
 
-      {/* Replies (min / max) */}
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Min replies</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.minReplies ?? ""}
-          onChange={(e) =>
-            onRepliesChange(numOrEmpty(e.target.value as any), value.maxReplies ?? "")
-          }
-        />
-      </div>
-      <div className="col-span-12 md:col-span-2">
-        <label className="block text-xs font-medium mb-1">Max replies</label>
-        <input
-          inputMode="numeric"
-          className="w-full rounded-lg px-3 py-2"
-          value={value.maxReplies ?? ""}
-          onChange={(e) =>
-            onRepliesChange(value.minReplies ?? "", numOrEmpty(e.target.value as any))
-          }
-        />
-      </div>
-
-      {/* Clear */}
-      <div className="col-span-12 md:col-span-1 flex md:justify-end">
-        <button className="btn border px-3 py-2 rounded-lg" onClick={onClear}>
-          Clear
-        </button>
+        {/* Spacer on xl to complete the 12 columns (5+4+3 / 4+4+3 leaves 1) */}
+        <div className="hidden xl:block xl:col-span-1" />
       </div>
     </div>
   );
-};
+}
