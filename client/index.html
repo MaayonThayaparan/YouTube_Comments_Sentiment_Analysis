@@ -1,15 +1,46 @@
+<!--
+  index.html — Application Shell for YouTube Sentiment Analyzer
+  -----------------------------------------------------------------------------
+  WHAT:
+    - Defines the static HTML container for the React SPA (Single Page Application).
+    - Root mounting point is <div id="root"> where React renders dynamically.
+    - Loads base typography and dark/light theme defaults.
+
+  WHY:
+    - Provides critical metadata for browser rendering (charset, viewport).
+    - Preconnects to Google Fonts for performance (fewer DNS/TLS handshakes).
+    - Uses Inter font family for modern, legible UI across platforms.
+
+  NOTES:
+    - <body> applies default Tailwind classes for theming.
+    - The React entrypoint is main.tsx (bundled by Vite).
+    - This file should remain minimal, as React takes over DOM control.
+-->
+
 <!doctype html>
 <html lang="en">
   <head>
+    <!-- Document-level metadata -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YouTube Sentiment</title>
+
+    <!-- Performance optimization: pre-establish connections for Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Typography: Inter family (weights: 300,400,600,700) for UI consistency -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    >
   </head>
+
   <body class="page-bg text-gray-900 dark:text-gray-100">
+    <!-- React mounts into this container -->
     <div id="root"></div>
+
+    <!-- Entry script: Vite will bundle & load React/TSX from here -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,7 +1,22 @@
-import React from 'react';
-import { type ScoredRow } from '../../utils/scoring';
+/**
+ * MetricsPanel
+ * ---------------------------------------------------------------------------
+ * Displays aggregate sentiment statistics in three rows:
+ *   1. Primary avg score card (clickable, evidence-enabled).
+ *   2. Positive / Neutral / Negative gradient cards (clickable).
+ *   3. Secondary metrics (% positive, avg likes, avg replies).
+ *
+ * Integration notes:
+ * - Provide `onEvidence` callback to hook into EvidenceModal.
+ *   e.g. onEvidence={(type) => setEvidence({ open: true, title: type, items: ... })}
+ * - Rows are computed from ScoredRow[] using thresholds consistent with charts.
+ * - Cards use consistent layout: label top, value center, info icon top-right.
+ */
 
-/* Classic, crisp “i” icon (circled) */
+import React from 'react'
+import { type ScoredRow } from '../../utils/scoring'
+
+/** Classic circled "i" icon with tooltip/title support. */
 function InfoIcon({ title }: { title: string }) {
   return (
     <span
@@ -23,31 +38,33 @@ function InfoIcon({ title }: { title: string }) {
         <rect x="11.2" y="10" width="1.6" height="8" rx="0.8" fill="currentColor" stroke="none" />
       </svg>
     </span>
-  );
+  )
 }
 
 export function MetricsPanel({
   rows,
   onEvidence,
 }: {
-  rows: ScoredRow[];
-  onEvidence?: (type: 'avg' | 'pos' | 'neu' | 'neg') => void;
+  rows: ScoredRow[]
+  onEvidence?: (type: 'avg' | 'pos' | 'neu' | 'neg') => void
 }) {
-  if (!rows?.length) return <div className="card p-4 text-center text-gray-500">No Data</div>;
+  if (!rows?.length) {
+    return <div className="card p-4 text-center text-gray-500">No Data</div>
+  }
 
-  // Aggregates
-  const n = Math.max(rows.length, 1);
-  const avg = rows.reduce((a, b) => a + b.adjusted, 0) / n;
-  const pos = rows.filter((r) => r.adjusted > 0.1).length;
-  const neg = rows.filter((r) => r.adjusted < -0.1).length;
-  const neu = n - pos - neg;
+  // -------------------- Aggregates --------------------
+  const n = Math.max(rows.length, 1)
+  const avg = rows.reduce((a, b) => a + b.adjusted, 0) / n
+  const pos = rows.filter((r) => r.adjusted > 0.1).length
+  const neg = rows.filter((r) => r.adjusted < -0.1).length
+  const neu = n - pos - neg
 
-  const pctPositive = (pos / n) * 100;
-  const avgLikes = rows.reduce((a, b) => a + ((b as any).likeCount ?? 0), 0) / n;
-  const avgReplies = rows.reduce((a, b) => a + ((b as any).totalReplyCount ?? 0), 0) / n;
+  const pctPositive = (pos / n) * 100
+  const avgLikes = rows.reduce((a, b) => a + ((b as any).likeCount ?? 0), 0) / n
+  const avgReplies = rows.reduce((a, b) => a + ((b as any).totalReplyCount ?? 0), 0) / n
 
-  const fmt2 = (x: number) => x.toFixed(2);
-  const pct1 = (x: number) => `${x.toFixed(1)}%`;
+  const fmt2 = (x: number) => x.toFixed(2)
+  const pct1 = (x: number) => `${x.toFixed(1)}%`
 
   return (
     <div className="card p-4">
@@ -59,7 +76,7 @@ export function MetricsPanel({
           label="Avg Score"
           value={fmt2(avg)}
           onClick={() => onEvidence?.('avg')}
-          tooltip="Click for sample comments that drive field"
+          tooltip="Click for sample comments that drive this field"
         />
       </div>
 
@@ -72,7 +89,7 @@ export function MetricsPanel({
           ring="ring-emerald-300/60"
           border="border-emerald-400"
           onClick={() => onEvidence?.('pos')}
-          tooltip="Click for sample comments that drive field"
+          tooltip="Click for sample comments that drive this field"
         />
         <ColorCard
           label="Neutral"
@@ -81,7 +98,7 @@ export function MetricsPanel({
           ring="ring-amber-300/60"
           border="border-amber-300"
           onClick={() => onEvidence?.('neu')}
-          tooltip="Click for sample comments that drive field"
+          tooltip="Click for sample comments that drive this field"
         />
         <ColorCard
           label="Negative"
@@ -90,33 +107,31 @@ export function MetricsPanel({
           ring="ring-rose-300/60"
           border="border-rose-400"
           onClick={() => onEvidence?.('neg')}
-          tooltip="Click for sample comments that drive field"
+          tooltip="Click for sample comments that drive this field"
         />
       </div>
 
-      {/* Row 3: Secondary metrics */}
+      {/* Row 3: Secondary metrics (not clickable) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SecondaryCard label="% Positive" value={pct1(pctPositive)} />
         <SecondaryCard label="Avg Likes / Comment" value={fmt2(avgLikes)} />
         <SecondaryCard label="Avg Replies / Comment" value={fmt2(avgReplies)} />
       </div>
     </div>
-  );
+  )
 }
 
-/* PrimaryCard (Avg Score)
-   - Icon absolutely pinned top-right; content centered via flex.
-   - Original sizes kept: label text-xs, value text-3xl. */
+/* Primary card (Avg Score) */
 function PrimaryCard({
   label,
   value,
   onClick,
   tooltip,
 }: {
-  label: string;
-  value: string;
-  onClick?: () => void;
-  tooltip?: string;
+  label: string
+  value: string
+  onClick?: () => void
+  tooltip?: string
 }) {
   return (
     <button
@@ -127,25 +142,20 @@ function PrimaryCard({
         px-4 py-4 transition hover:shadow-lg hover:-translate-y-[1px]
         hover:ring-2 hover:ring-indigo-300/50
       "
-      title={tooltip || 'Click for sample comments that drive field'}
+      title={tooltip}
     >
-      {/* TOP-RIGHT ICON */}
       <div className="absolute top-2 right-2">
-        <InfoIcon title={tooltip || 'Click for sample comments that drive field'} />
+        <InfoIcon title={tooltip || ''} />
       </div>
-
-      {/* CENTERED CONTENT */}
       <div className="flex flex-col items-center justify-center text-center text-gray-900 dark:text-gray-900">
         <div className="text-xs font-medium opacity-80">{label}</div>
         <div className="text-3xl font-extrabold leading-tight">{value}</div>
       </div>
     </button>
-  );
+  )
 }
 
-/* ColorCard (Positive/Neutral/Negative)
-   - Same centering approach as above; icon top-right absolute.
-   - Original sizes kept: label text-xs, value text-2xl. */
+/* Gradient cards (Positive / Neutral / Negative) */
 function ColorCard({
   label,
   value,
@@ -155,13 +165,13 @@ function ColorCard({
   onClick,
   tooltip,
 }: {
-  label: string;
-  value: string;
-  gradient: string;
-  border: string;
-  ring: string;
-  onClick?: () => void;
-  tooltip?: string;
+  label: string
+  value: string
+  gradient: string
+  border: string
+  ring: string
+  onClick?: () => void
+  tooltip?: string
 }) {
   return (
     <button
@@ -173,20 +183,17 @@ function ColorCard({
         text-white border ${border} shadow
         transition hover:shadow-lg hover:-translate-y-[1px] hover:ring-2 ${ring}
       `}
-      title={tooltip || 'Click for sample comments that drive field'}
+      title={tooltip}
     >
-      {/* TOP-RIGHT ICON */}
       <div className="absolute top-2 right-2">
-        <InfoIcon title={tooltip || 'Click for sample comments that drive field'} />
+        <InfoIcon title={tooltip || ''} />
       </div>
-
-      {/* CENTERED CONTENT */}
       <div className="flex flex-col items-center justify-center text-center">
         <div className="text-xs font-semibold opacity-95">{label}</div>
         <div className="text-2xl font-extrabold leading-tight">{value}</div>
       </div>
     </button>
-  );
+  )
 }
 
 /* Secondary neutral cards (non-clickable) */
@@ -202,5 +209,5 @@ function SecondaryCard({ label, value }: { label: string; value: string }) {
       <div className="text-xs font-medium opacity-80">{label}</div>
       <div className="text-xl font-semibold leading-6">{value}</div>
     </div>
-  );
+  )
 }

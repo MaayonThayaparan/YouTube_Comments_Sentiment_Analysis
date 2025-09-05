@@ -1,26 +1,37 @@
-import React from "react";
-
 /**
- * UnifiedFilters
- * ---------------------------------------------------------------------------
- * A compact, two–row filter bar that merges time window + global filters.
+ * UnifiedFilters.tsx
+ * -----------------------------------------------------------------------------
+ * WHAT:
+ *   - A reusable filter bar that consolidates global filters (date, country,
+ *     subscribers, likes, replies) into a consistent UI.
  *
- * Layout goals:
- *  - Mobile (default) .......... 1 column stack (readable on phones)
- *  - Small/Medium (sm/md/lg) ... 3 equal columns per row
- *  - Wide screens (xl and up) .. 12-col grid with wider spans for Date/Subs
- *                                 so full date text fits comfortably.
+ * WHY:
+ *   - Centralizes filter logic in one place for easier maintenance.
+ *   - Provides a compact but responsive layout:
+ *       • Mobile → stacked 1-column for readability.
+ *       • sm/md/lg → 3-column grid for efficiency.
+ *       • xl+ → 12-column grid with wider spans so dates/subscribers fit.
  *
- * Row 1 (xl):
- *   [Date Range span=5] | [Subscribers span=4] | [Country span=3]
- * Row 2 (xl):
- *   [Likes span=4]      | [Replies span=4]     | [Clear span=3 (right)]
+ * DESIGN DECISIONS:
+ *   - RangeGroup wraps Min/Max pairs inside a single bordered container to
+ *     visually imply relationship and improve keyboard navigation.
+ *   - Theme variables (`--input-bg`, `--input-border`, `--text`) used for
+ *     consistent light/dark theming without hardcoding colors.
+ *   - A "Clear" button is always present to reset all filters quickly.
  *
- * Visual affordances:
- *  - Paired min/max inputs are wrapped together so users see they’re related.
- *  - All controls read theme tokens from CSS variables for consistent theming.
+ * NOTES:
+ *   - Layout scales gracefully with Tailwind grid utilities.
+ *   - Controlled inputs for React state synchronization.
+ *   - Future extensions (e.g., sentiment thresholds) can be slotted easily.
  */
 
+import React from "react";
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
+/** Filter state managed at the App level. */
 export type UnifiedFiltersState = {
   from: string;
   to: string;
@@ -48,13 +59,19 @@ type Props = {
   onClear: () => void;
 };
 
+// -----------------------------------------------------------------------------
+// RangeGroup helper
+// -----------------------------------------------------------------------------
+
 /**
  * RangeGroup
- * Small helper that renders a "Min | Max" pair inside a single bordered box.
- * This provides:
- *  - Visual grouping (users understand min/max belong together)
- *  - Keyboard efficiency (tab once to jump from min to max)
- *  - A single hit area that feels like a composite control
+ * -----------------------------------------------------------------------------
+ * Small helper that renders a "Min | Max" numeric pair.
+ *
+ * WHY:
+ *   - Keeps paired inputs visually and structurally grouped.
+ *   - Improves UX by showing relation and reducing mis-entry risk.
+ *   - Optimizes keyboard flow (Tab moves from min → max seamlessly).
  */
 function RangeGroup({
   label,
@@ -77,7 +94,7 @@ function RangeGroup({
         {label}
       </label>
 
-      {/* One bordered container that holds both fields for clear pairing */}
+      {/* Single bordered container for visual grouping of min/max inputs */}
       <div className="flex border rounded-lg bg-[var(--input-bg)] border-[var(--input-border)]">
         <input
           inputMode="numeric"
@@ -97,6 +114,10 @@ function RangeGroup({
     </div>
   );
 }
+
+// -----------------------------------------------------------------------------
+// UnifiedFilters component
+// -----------------------------------------------------------------------------
 
 export function UnifiedFilters({
   value,
@@ -122,20 +143,19 @@ export function UnifiedFilters({
 
   return (
     <div className="card p-4 h-full flex flex-col">
-      {/* 
-        === ROW 1 ============================================================
-        Default → 1 col (mobile)
-        sm/lg  → 3 equal cols (space efficient)
-        xl     → 12-col grid to allow wider spans for Date + Subs
-      */}
-      <div className="
+      {/* ---------------------------------------------------------------------
+           ROW 1: Date / Subscribers / Country
+           Responsive grid: 1-col mobile, 3-col sm/md, 12-col xl
+      --------------------------------------------------------------------- */}
+      <div
+        className="
           grid gap-4 mb-3
-          grid-cols-1 lets go 
+          grid-cols-1
           sm:grid-cols-3
           xl:grid-cols-12
         "
       >
-        {/* Date Range: */}
+        {/* Date Range selector */}
         <div className="xl:col-span-5 sm:col-span-1">
           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
             Date Range
@@ -156,7 +176,7 @@ export function UnifiedFilters({
           </div>
         </div>
 
-        {/* Subscribers: */}
+        {/* Subscribers range */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Subscribers"
@@ -168,7 +188,7 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Country: */}
+        {/* Country dropdown */}
         <div className="xl:col-span-2 sm:col-span-1">
           <label className="block text-xs text-gray-600 dark:text-gray-300 mb-1">
             Country
@@ -188,18 +208,19 @@ export function UnifiedFilters({
         </div>
       </div>
 
-      {/* 
-        === ROW 2 ============================================================
-        Same responsive logic; xl uses 12-col spans so Clear can be narrower.
-      */}
-      <div className="
+      {/* ---------------------------------------------------------------------
+           ROW 2: Likes / Replies / Clear Button
+           Responsive grid mirrors row 1; Clear spans smaller at xl.
+      --------------------------------------------------------------------- */}
+      <div
+        className="
           grid gap-4
-          grid-cols-1 
+          grid-cols-1
           sm:grid-cols-3
           xl:grid-cols-12
         "
       >
-        {/* Likes: xl */}
+        {/* Likes range */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Likes"
@@ -211,7 +232,7 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Replies: */}
+        {/* Replies range */}
         <div className="xl:col-span-5 sm:col-span-1">
           <RangeGroup
             label="Replies"
@@ -223,20 +244,19 @@ export function UnifiedFilters({
           />
         </div>
 
-        {/* Clear button:  */}
+        {/* Clear all filters button */}
         <div className="xl:col-span-2 sm:col-span-1 flex items-end">
           <button
             type="button"
             className="btn btn-primary w-full"
             onClick={onClear}
-            // Avoid overlap with neighboring inputs at tight widths.
             aria-label="Clear all filters"
           >
             Clear
           </button>
         </div>
 
-        {/* Spacer on xl to complete the 12 columns (5+4+3 / 4+4+3 leaves 1) */}
+        {/* Spacer: ensures 12-col balance (5 + 5 + 2 = 12) */}
         <div className="hidden xl:block xl:col-span-1" />
       </div>
     </div>

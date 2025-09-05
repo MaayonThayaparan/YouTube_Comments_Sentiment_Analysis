@@ -1,3 +1,30 @@
+/**
+ * SummaryPanel
+ * ---------------------------------------------------------------------------
+ * Displays the AI-generated summary of comment sentiment.
+ *
+ * Features:
+ * - Header row with "AI Summary" title and a button:
+ *     - Button label switches between "Summarize" and "Re-summarize"
+ *     - Disabled while a summary request is in progress
+ * - Body states:
+ *     - Loading ........ shows "Summarizing…"
+ *     - No data ........ shows "No data yet."
+ *     - Error .......... shows error message (only if there is data)
+ *     - Success ........ shows the AI summary (preserves line breaks)
+ *
+ * Usage:
+ * <SummaryPanel
+ *   summary={summary}
+ *   loading={summaryLoading}
+ *   error={summaryError}
+ *   hasData={items.length > 0}
+ *   onResummarize={() => fetchSummary(allTexts)}
+ * />
+ */
+
+import React from "react";
+
 type Props = {
   summary: string | null;
   loading: boolean;
@@ -6,7 +33,13 @@ type Props = {
   onResummarize: () => void;
 };
 
-export function SummaryPanel({ summary, loading, error, hasData, onResummarize }: Props) {
+export function SummaryPanel({
+  summary,
+  loading,
+  error,
+  hasData,
+  onResummarize,
+}: Props) {
   return (
     <div className="card p-4">
       {/* Header row with title + button */}

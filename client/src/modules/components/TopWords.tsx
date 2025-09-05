@@ -4,51 +4,58 @@ import { type ScoredRow } from '../../utils/scoring'
 
 /**
  * Section
- * -------
- * Renders a titled bucket (Overall / Positive / Negative) and a set of TF-IDF words
- * as "chips". Chips use *tinted backgrounds* (grey/green/red) with forced-important
- * Tailwind classes to override any global theme defaults (light/dark/neon).
+ * -----------------------------------------------------------------------------
+ * Generic subcomponent that renders:
+ *   - A section title (colored by sentiment bucket).
+ *   - A list of TF-IDF "chips" (keywords).
  *
- * Design goals:
- *  - Title color hints the section (grey/green/red).
- *  - Chip CONTAINER has the tint; chip TEXT remains readable in all themes.
- *  - No borders that could introduce unwanted white/light artifacts.
- *  - No reliance on external CSS classes that might set bg to white.
+ * DESIGN INTENT:
+ *   - Chips use tinted backgrounds (grey / green / red) to visually reinforce
+ *     sentiment grouping.
+ *   - Text color is forced to neutral gray so that it's always legible across
+ *     all themes (light/dark/neon).
+ *   - Borders/shadows are stripped away to avoid clashes with global themes.
+ *
+ * WHY:
+ *   - Separating this into its own component avoids repetition across
+ *     Overall/Positive/Negative sections.
  */
 function Section({
   title,
   words,
-  // Tailwind class list (with ! important) for the chip background per theme.
   chipBg,
-  // Tailwind class list for the section title color.
-  titleColor
+  titleColor,
 }: {
   title: string
   words: { term: string; score: number }[]
   chipBg: string
   titleColor: string
 }) {
-  if (!words?.length) return <div className="text-gray-500">No Data</div>
+  if (!words?.length) {
+    return <div className="text-gray-500">No Data</div>
+  }
 
   return (
     <div>
+      {/* Section header with sentiment-specific color */}
       <div className={`font-semibold mb-2 ${titleColor}`}>{title}</div>
+
+      {/* Chip cloud of TF-IDF words */}
       <div className="flex flex-wrap gap-2 text-sm">
-        {words.map(k => (
+        {words.map((k) => (
           <span
             key={k.term}
             className={[
-              // Base chip shape & spacing
+              // Chip shape & padding
               'px-2 py-1 rounded-lg',
-              // Force the tinted background regardless of other styles/themes:
-              // light → e.g. bg-green-200 ; dark → e.g. bg-green-800
+              // Background tint (sentiment-specific, forced with !important)
               chipBg,
-              // Text stays neutral & legible in any theme
+              // Always neutral text color to ensure legibility
               '!text-gray-900 dark:!text-gray-100',
-              // Remove borders so no white outline leaks in neon/dark
+              // Remove unwanted outlines/borders
               '!border-0',
-              // Defensive: avoid inherited shadows/outlines from other themes
-              'shadow-none outline-none'
+              // Defensive: prevent theme leakage
+              'shadow-none outline-none',
             ].join(' ')}
           >
             {k.term}
@@ -61,43 +68,60 @@ function Section({
 
 /**
  * TopWords
- * --------
- * Computes top-20 TF-IDF terms for:
- *   - Overall (all comments & replies)
- *   - Positive (rows/replies above threshold)
- *   - Negative (rows/replies below threshold)
+ * -----------------------------------------------------------------------------
+ * WHAT:
+ *   - Computes the top-20 TF-IDF terms for:
+ *       1. All comments (Overall)
+ *       2. Positive comments/replies
+ *       3. Negative comments/replies
  *
- * Implementation notes:
- *  - Sentiment thresholds mirror your existing logic (> 0.1 / < -0.1).
- *  - `!` important is applied to chip backgrounds to beat any theme CSS (incl. neon).
+ * WHY:
+ *   - Surfaces the most distinctive words used across sentiment buckets.
+ *   - Helps analysts quickly spot dominant themes.
+ *
+ * IMPLEMENTATION DETAILS:
+ *   - Sentiment thresholds:
+ *       • Positive if adjusted/base > +0.1
+ *       • Negative if adjusted/base < –0.1
+ *       • Neutral zone otherwise (ignored here).
+ *   - Uses `useMemo` so expensive TF-IDF calculations only rerun when `rows`
+ *     changes.
+ *   - Each bucket is passed into <Section /> with custom colors and chip styles.
+ *
+ * UX:
+ *   - Responsive grid: On large screens, Overall / Positive / Negative render
+ *     side-by-side in 3 columns. On small screens they stack vertically.
  */
 export function TopWords({ rows }: { rows: ScoredRow[] }) {
   const { all, pos, neg } = useMemo(() => {
-    const allTexts = rows.flatMap(r => [
+    // Flatten all comment + reply text
+    const allTexts = rows.flatMap((r) => [
       r.textOriginal,
-      ...(((r as any).replies ?? []).map((x: any) => x.textOriginal))
+      ...(((r as any).replies ?? []).map((x: any) => x.textOriginal)),
     ])
 
-    const posTexts = rows.flatMap(r =>
+    // Positive bucket: parent or reply with sentiment > 0.1
+    const posTexts = rows.flatMap((r) =>
       (r.adjusted > 0.1 ? [r.textOriginal] : []).concat(
         ((r as any).replies ?? [])
           .filter((x: any) => x.base > 0.1)
-          .map((x: any) => x.textOriginal)
+          .map((x: any) => x.textOriginal),
       )
     )
 
-    const negTexts = rows.flatMap(r =>
+    // Negative bucket: parent or reply with sentiment < -0.1
+    const negTexts = rows.flatMap((r) =>
       (r.adjusted < -0.1 ? [r.textOriginal] : []).concat(
         ((r as any).replies ?? [])
           .filter((x: any) => x.base < -0.1)
-          .map((x: any) => x.textOriginal)
+          .map((x: any) => x.textOriginal),
       )
     )
 
     return {
       all: tfidfTopOverall(allTexts, 20),
       pos: tfidfTopOverall(posTexts, 20),
-      neg: tfidfTopOverall(negTexts, 20)
+      neg: tfidfTopOverall(negTexts, 20),
     }
   }, [rows])
 
@@ -106,7 +130,7 @@ export function TopWords({ rows }: { rows: ScoredRow[] }) {
       <h3 className="text-lg font-semibold mb-3">Top 20 Words</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Overall → grey tint chips */}
+        {/* Overall → neutral gray tint */}
         <Section
           title="Overall"
           words={all}
@@ -114,7 +138,7 @@ export function TopWords({ rows }: { rows: ScoredRow[] }) {
           chipBg="!bg-gray-200 dark:!bg-gray-700"
         />
 
-        {/* Positive → green tint chips */}
+        {/* Positive → green tint */}
         <Section
           title="Positive Responses"
           words={pos}
@@ -122,7 +146,7 @@ export function TopWords({ rows }: { rows: ScoredRow[] }) {
           chipBg="!bg-green-200 dark:!bg-green-800"
         />
 
-        {/* Negative → red tint chips */}
+        {/* Negative → red tint */}
         <Section
           title="Negative Responses"
           words={neg}

@@ -1,16 +1,40 @@
+/**
+ * Leaderboard
+ * ---------------------------------------------------------------------------
+ * Surfaces authors by:
+ *  - Most liked comments
+ *  - Most positive replies
+ *  - Most negative replies
+ *
+ * Interactions:
+ *  - Clicking an author opens a modal showing:
+ *      - likes: all comments authored by them + their replies
+ *      - pos  : their positive replies (grouped by parent)
+ *      - neg  : their negative replies (grouped by parent)
+ *
+ * Modal behavior:
+ *  - Always centered in viewport using `flex items-center justify-center`.
+ *  - Backdrop darkens (bg-black/80 + blur).
+ *  - Scroll locked while open.
+ *  - ESC key closes modal.
+ */
+
 import React, { useMemo, useState, useEffect } from 'react';
 import { type ScoredRow } from '../../utils/scoring';
 import { compactNumber, colorForScore } from '../../utils/colors';
 import { useScrollLock } from './useScrollLock';
 
-/**
+/* ---------------------------------------------------------------------------
  * Chip
- * ----
- * Tiny numeric pill with theme-safe tints for leaderboard totals.
- */
-function Chip({ children, variant = 'neutral' as 'neutral' | 'positive' | 'negative' }) {
+ * Small numeric pill used in leaderboard tables.
+ * Colors vary by sentiment: neutral | positive | negative.
+ * ------------------------------------------------------------------------- */
+function Chip({
+  children,
+  variant = 'neutral' as 'neutral' | 'positive' | 'negative',
+}) {
   const bgByVariant: Record<string, string> = {
-    neutral:  '!bg-gray-200 dark:!bg-gray-700',
+    neutral: '!bg-gray-200 dark:!bg-gray-700',
     positive: '!bg-green-200 dark:!bg-green-800',
     negative: '!bg-red-200 dark:!bg-red-800',
   };
@@ -20,7 +44,7 @@ function Chip({ children, variant = 'neutral' as 'neutral' | 'positive' | 'negat
         'inline-block px-2 py-0.5 rounded-lg text-xs',
         bgByVariant[variant],
         '!text-gray-900 dark:!text-gray-100',
-        '!border-0 shadow-none outline-none align-middle'
+        '!border-0 shadow-none outline-none align-middle',
       ].join(' ')}
     >
       {children}
@@ -28,11 +52,11 @@ function Chip({ children, variant = 'neutral' as 'neutral' | 'positive' | 'negat
   );
 }
 
-/**
+/* ---------------------------------------------------------------------------
  * ScoreChip
- * ---------
- * Sentiment chip aligned with RepliesModal styling.
- */
+ * Sentiment score pill with tinted bg/border from colorForScore.
+ * Shared with RepliesModal for visual consistency.
+ * ------------------------------------------------------------------------- */
 function ScoreChip({ score }: { score?: number }) {
   const s = typeof score === 'number' ? score : 0;
   const c = colorForScore(s);
@@ -46,25 +70,32 @@ function ScoreChip({ score }: { score?: number }) {
   );
 }
 
-/**
- * Leaderboard
- * -----------
- * Surfaces authors by likes / positive replies / negative replies.
- * Interaction: clicking an author opens a modal whose contents depend on the
- * list the author was clicked from (likes / positive / negative).
- */
+/* ---------------------------------------------------------------------------
+ * Leaderboard Component
+ * ------------------------------------------------------------------------- */
 export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
-  type OpenCtx = { open: boolean; author: string; items: any[]; view: 'likes'|'pos'|'neg' };
-  const [userOpen, setUserOpen] = useState<OpenCtx>({ open: false, author: '', items: [], view: 'likes' });
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({}); // per-parent toggle in modal
+  type OpenCtx = {
+    open: boolean;
+    author: string;
+    items: any[];
+    view: 'likes' | 'pos' | 'neg';
+  };
+  const [userOpen, setUserOpen] = useState<OpenCtx>({
+    open: false,
+    author: '',
+    items: [],
+    view: 'likes',
+  });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // Fast lookup of whole threads by parent id (parent + full replies).
+  // Map parentId -> thread (parent + replies)
   const threadsById = useMemo(() => {
     const m = new Map<string, { parent: any; replies: any[] }>();
     for (const r of rows) m.set(r.id, { parent: r, replies: (r as any).replies || [] });
     return m;
   }, [rows]);
 
+  // Build leaderboard stats + authoredMap
   const boards = useMemo(() => {
     const stats = new Map<string, { likes: number; posReplies: number; negReplies: number }>();
     const authoredMap = new Map<string, any[]>();
@@ -105,19 +136,12 @@ export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
     };
   }, [rows]);
 
-  /**
-   * Table
-   * -----
-   * Click handler opens modal with the correct view context:
-   *  - likes: show each parent authored by this user + ALL replies to those parents
-   *  - pos:   show this user's positive replies (grouped by parent)
-   *  - neg:   show this user's negative replies (grouped by parent)
-   */
+  // Table subcomponent
   const Table = ({
     data,
     colKey,
     variant,
-    view
+    view,
   }: {
     data: any[];
     colKey: 'likes' | 'posReplies' | 'negReplies';
@@ -138,7 +162,9 @@ export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
       <tbody>
         {(data || []).length === 0 ? (
           <tr>
-            <td colSpan={2} className="p-3 text-center text-gray-500">No Data</td>
+            <td colSpan={2} className="p-3 text-center text-gray-500">
+              No Data
+            </td>
           </tr>
         ) : (
           data.map((r, i) => (
@@ -166,7 +192,7 @@ export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
     </table>
   );
 
-  // Lock scroll + allow ESC to close
+  // Scroll lock + ESC close
   useScrollLock(userOpen.open);
   useEffect(() => {
     if (!userOpen.open) return;
@@ -178,19 +204,16 @@ export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
   // Build modal groups based on view
   const groups = useMemo(() => {
     if (!userOpen.open) return [];
-
     if (userOpen.view === 'likes') {
-      // Parents authored by this person; include ALL replies to those parents.
       const parents = (userOpen.items || []).filter((x: any) => x.isParent);
       return parents.map((p: any) => {
         const thread = threadsById.get(p.id) || { parent: p, replies: [] };
         return { parent: thread.parent, replies: thread.replies };
       });
     }
-
-    // pos/neg views: pick this author's replies with the requested polarity, group by parentId
     const wantPos = userOpen.view === 'pos';
-    const myReplies = (userOpen.items || []).filter((x: any) => !x.isParent && typeof x.base === 'number')
+    const myReplies = (userOpen.items || [])
+      .filter((x: any) => !x.isParent && typeof x.base === 'number')
       .filter((x: any) => (wantPos ? x.base > 0.1 : x.base < -0.1));
 
     const byParent = new Map<string, any[]>();
@@ -228,87 +251,89 @@ export function Leaderboard({ rows }: { rows: ScoredRow[] }) {
         </div>
       </div>
 
+      {/* Modal */}
       {userOpen.open && (
-        <div className="fixed inset-0 z-[2147483647] isolate">
+        <div
+          className="fixed inset-0 z-[2147483647] flex items-center justify-center"
+          role="dialog"
+          aria-modal="true"
+        >
+          {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/90 backdrop-blur-sm"
             onClick={() => setUserOpen({ open: false, author: '', items: [], view: 'likes' })}
             aria-hidden="true"
           />
-          <div className="relative z-10 flex min-h-full items-center justify-center p-4">
-            <div
-              className="
-                w-full max-w-3xl rounded-2xl shadow-xl border
-                bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
-              "
-            >
-              <div className="flex items-center justify-between p-4 pb-3">
-                <div className="text-lg font-semibold">
-                  Activity by {userOpen.author}
-                </div>
-                <button
-                  onClick={() => setUserOpen({ open: false, author: '', items: [], view: 'likes' })}
-                  className="rounded-lg px-3 py-1.5 border border-[var(--border)] hover:bg-white/10"
-                >
-                  Close
-                </button>
-              </div>
 
-              <div className="px-4 pb-4 space-y-4 max-h-[70vh] overflow-auto text-sm">
-                {groups.length === 0 ? (
-                  <div className="text-gray-500">No Data</div>
-                ) : (
-                  groups.map(({ parent, replies }, idx) => {
-                    const pid = parent?.id || String(idx);
-                    const isOpen = !!expanded[pid];
-                    return (
-                      <div key={pid} className="border-b border-[var(--border)] pb-3">
-                        {/* Parent — same structure as RepliesModal */}
-                        <div className="flex items-center gap-2 mb-1">
-                          <ScoreChip score={parent?.base ?? parent?.adjusted} />
-                          <div className="text-gray-500 text-xs">
-                            {(parent?.publishedAt || '').slice(0, 10)} • {parent?.likeCount ?? 0} likes • {parent?.authorDisplayName}
-                          </div>
-                        </div>
-                        <div className="whitespace-pre-wrap text-base md:text-lg font-medium bg-white/[0.03] dark:bg-black/20 rounded-xl px-3 py-2">
-                          {parent?.textOriginal}
-                        </div>
+          {/* Panel (centered by flex above) */}
+          <div
+            className="
+              relative z-10 w-full max-w-3xl rounded-2xl shadow-xl border
+              bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
+            "
+          >
+            <div className="flex items-center justify-between p-4 pb-3">
+              <div className="text-lg font-semibold">Activity by {userOpen.author}</div>
+              <button
+                onClick={() => setUserOpen({ open: false, author: '', items: [], view: 'likes' })}
+                className="rounded-lg px-3 py-1.5 border border-[var(--border)] hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
 
-                        {/* Toggle replies */}
-                        <div className="mt-2">
-                          <button
-                            onClick={() => setExpanded(prev => ({ ...prev, [pid]: !isOpen }))}
-                            className="rounded-lg px-3 py-1.5 border text-xs"
-                          >
-                            {isOpen ? 'Hide replies' : `Show replies (${replies.length})`}
-                          </button>
+            <div className="px-4 pb-4 space-y-4 max-h-[70vh] overflow-auto text-sm">
+              {groups.length === 0 ? (
+                <div className="text-gray-500">No Data</div>
+              ) : (
+                groups.map(({ parent, replies }, idx) => {
+                  const pid = parent?.id || String(idx);
+                  const isOpen = !!expanded[pid];
+                  return (
+                    <div key={pid} className="border-b border-[var(--border)] pb-3">
+                      {/* Parent */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <ScoreChip score={parent?.base ?? parent?.adjusted} />
+                        <div className="text-gray-500 text-xs">
+                          {(parent?.publishedAt || '').slice(0, 10)} • {parent?.likeCount ?? 0} likes • {parent?.authorDisplayName}
                         </div>
-
-                        {/* Replies list */}
-                        {isOpen && (
-                          <div className="mt-2 space-y-2">
-                            {replies.length === 0 ? (
-                              <div className="text-gray-500 text-xs">No replies</div>
-                            ) : (
-                              replies.map((r: any) => (
-                                <div key={r.id} className="border-t border-[var(--border)] pt-2">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <ScoreChip score={typeof r.base === 'number' ? r.base : undefined} />
-                                    <div className="text-gray-500 text-xs">
-                                      {(r.publishedAt || '').slice(0, 10)} • {r.likeCount ?? 0} likes • {r.authorDisplayName}
-                                    </div>
-                                  </div>
-                                  <div className="whitespace-pre-wrap">{r.textOriginal}</div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                      <div className="whitespace-pre-wrap text-base md:text-lg font-medium bg-white/[0.03] dark:bg-black/20 rounded-xl px-3 py-2">
+                        {parent?.textOriginal}
+                      </div>
+                      {/* Toggle replies */}
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setExpanded(prev => ({ ...prev, [pid]: !isOpen }))}
+                          className="rounded-lg px-3 py-1.5 border text-xs"
+                        >
+                          {isOpen ? 'Hide replies' : `Show replies (${replies.length})`}
+                        </button>
+                      </div>
+                      {/* Replies */}
+                      {isOpen && (
+                        <div className="mt-2 space-y-2">
+                          {replies.length === 0 ? (
+                            <div className="text-gray-500 text-xs">No replies</div>
+                          ) : (
+                            replies.map((r: any) => (
+                              <div key={r.id} className="border-t border-[var(--border)] pt-2">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <ScoreChip score={typeof r.base === 'number' ? r.base : undefined} />
+                                  <div className="text-gray-500 text-xs">
+                                    {(r.publishedAt || '').slice(0, 10)} • {r.likeCount ?? 0} likes • {r.authorDisplayName}
+                                  </div>
+                                </div>
+                                <div className="whitespace-pre-wrap">{r.textOriginal}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

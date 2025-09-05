@@ -1,3 +1,24 @@
+/**
+ * TimeSeriesChart
+ * -----------------------------------------------------------------------------
+ * WHAT:
+ *   - Displays average adjusted sentiment scores over time as a line chart.
+ *
+ * WHY:
+ *   - Lets analysts detect sentiment trends (spikes/dips in positivity or
+ *     negativity) correlated with publish dates or external events.
+ *
+ * HOW:
+ *   - Groups comment/reply scores by publish date (YYYY-MM-DD).
+ *   - Computes average sentiment per day.
+ *   - Renders via Recharts with responsive sizing and gradient styling.
+ *
+ * DESIGN:
+ *   - Y-axis domain fixed to [-1, 1] to match sentiment scoring scale.
+ *   - Gradient stroke line ensures a modern branded look.
+ *   - Tooltip style matches Pie/Bar charts for cross-component consistency.
+ */
+
 import React, { useMemo } from 'react'
 import {
   LineChart,
@@ -10,7 +31,7 @@ import {
 } from 'recharts'
 import { type ScoredRow } from '../../utils/scoring'
 
-// Utility: Format YYYY-MM-DD into YY/MM/DD for concise axis labels
+/** Utility: Format YYYY-MM-DD → YY/MM/DD for compact axis labels. */
 function fmtShort(dateStr: string) {
   if (!dateStr) return ''
   const [y, m, d] = dateStr.split('-')
@@ -18,12 +39,12 @@ function fmtShort(dateStr: string) {
 }
 
 export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
-  // -------------------------------
+  // ---------------------------------------------------------------------------
   // Data Transformation
-  // -------------------------------
-  // Using useMemo to avoid recomputation unless `rows` changes.
-  // - Groups scores by published date (truncated to YYYY-MM-DD).
-  // - Calculates the average sentiment score per day.
+  // ---------------------------------------------------------------------------
+  // - Memoized to avoid recomputation unless `rows` changes.
+  // - Groups scores by publish date (YYYY-MM-DD).
+  // - Calculates average adjusted sentiment per day.
   const data = useMemo(() => {
     if (!rows?.length) return []
 
@@ -45,30 +66,33 @@ export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
       }))
   }, [rows])
 
-  // -------------------------------
+  // ---------------------------------------------------------------------------
   // Empty State
-  // -------------------------------
+  // ---------------------------------------------------------------------------
+  // - Ensures the chart doesn’t render when there’s no data.
+  // - Provides a neutral “No Data” card to keep layout consistent.
   if (!data.length) {
-    return (
-      <div className="card p-4 text-center text-gray-500">No Data</div>
-    )
+    return <div className="card p-4 text-center text-gray-500">No Data</div>
   }
 
-  // -------------------------------
+  // ---------------------------------------------------------------------------
   // Chart Rendering
-  // -------------------------------
-  // - Renders a responsive line chart of average sentiment over time.
-  // - Applies a vertical gradient stroke for the line to match branding.
-  // - Uses consistent tooltip formatting shared with Pie/Bar charts.
+  // ---------------------------------------------------------------------------
+  // - ResponsiveContainer ensures the chart adapts to parent width/height.
+  // - Gradient line stroke provides a vertical brand-colored transition.
+  // - XAxis: uses compact date labels (YY/MM/DD) for clarity.
+  // - YAxis: domain fixed to [-1, 1] to match sentiment scoring rules.
+  // - CartesianGrid: light, dotted background grid for readability.
+  // - Tooltip: styled with dark background, rounded corners, consistent
+  //   with other chart components (Pie/Bar).
+  // - Line: monotone interpolation for smooth trend; no dots to avoid clutter.
   return (
     <div className="card p-4">
-      <h3 className="text-lg font-semibold mb-2">
-        Average Sentiment Over Time
-      </h3>
+      <h3 className="text-lg font-semibold mb-2">Average Sentiment Over Time</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            {/* Gradient Definition for Modern Look */}
+            {/* Gradient definition for modern, smooth sentiment line */}
             <defs>
               <linearGradient id="sentGrad" x1="0" y1="1" x2="0" y2="0">
                 <stop offset="0%" stopColor="var(--chart-1)" />
@@ -77,7 +101,7 @@ export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
               </linearGradient>
             </defs>
 
-            {/* Axes */}
+            {/* X-axis: compact date labels, no axis/tick lines */}
             <XAxis
               dataKey="date"
               tickFormatter={fmtShort}
@@ -85,6 +109,8 @@ export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
               axisLine={false}
               tickLine={false}
             />
+
+            {/* Y-axis: fixed [-1, 1] sentiment range, no axis/tick lines */}
             <YAxis
               domain={[-1, 1]}
               tick={{ fill: '#aaa' }}
@@ -92,10 +118,10 @@ export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
               tickLine={false}
             />
 
-            {/* Grid */}
+            {/* Grid: light dotted for subtle background context */}
             <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
 
-            {/* Tooltip (matches style of Pie/Bar tooltips) */}
+            {/* Tooltip: styled dark card, consistent with Pie/Bar charts */}
             <Tooltip
               formatter={(v: any) => [
                 v.toFixed ? v.toFixed(2) : v,
@@ -110,7 +136,7 @@ export function TimeSeriesChart({ rows }: { rows: ScoredRow[] }) {
               }}
             />
 
-            {/* Sentiment Line */}
+            {/* Sentiment trend line: gradient stroke, no dots for clarity */}
             <Line
               type="monotone"
               dataKey="avg"

@@ -1,3 +1,24 @@
+/**
+ * CommentsTable
+ * ---------------------------------------------------------------------------
+ * Master view for all comments (table on desktop, card list on mobile).
+ *
+ * Features:
+ *  - Filtering by sentiment bucket (positive/negative/etc.)
+ *  - Full-text search
+ *  - Sorting on multiple fields (score, author, likes, replies, etc.)
+ *  - Pagination (default 30 rows per page)
+ *  - Responsive layouts:
+ *      • Mobile → stacked comment cards
+ *      • Desktop → sortable table
+ *  - Integration with RepliesModal (opens inline to show replies)
+ *
+ * Design notes:
+ *  - Sentiment bucket filter uses SentimentChips in "inline" mode.
+ *  - "Show Replies" opens RepliesModal for a given parent comment.
+ *  - Consistent chip styling across table, mobile, and modal.
+ */
+
 import React from 'react'
 import { type ScoredRow } from '../../utils/scoring'
 import { colorForScore } from '../../utils/colors'
@@ -14,9 +35,11 @@ type SortKey =
   | 'authorSubscriberCount'
 type SortDir = 'asc' | 'desc'
 
-/** Small “meta chip” used in the mobile cards.
- * Design: fixed light-grey bg + black text across all themes (light/dark/neon).
- * The `!` modifiers win over any theme overrides.
+/**
+ * Chip
+ * ----
+ * Small metadata chip used in mobile cards.
+ * Always light grey background + black text (ignores global themes).
  */
 function Chip({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +52,13 @@ function Chip({ children }: { children: React.ReactNode }) {
   )
 }
 
-/** One comment card for mobile layout. */
+/**
+ * MobileCommentCard
+ * -----------------
+ * Compact card view for comments (used on mobile).
+ * Shows score, author, date, meta chips, and truncated text.
+ * Includes "Show more" toggle for long comments and "Replies" button.
+ */
 function MobileCommentCard({
   r,
   onShowReplies,
@@ -48,7 +77,7 @@ function MobileCommentCard({
         bg-[var(--surface)] text-[var(--text)] border-[var(--border)]
       "
     >
-      {/* Top row: Score + Author + Date */}
+      {/* Top row: score + author + date + replies button */}
       <div className="flex items-start justify-between gap-3">
         <span
           className={`inline-block px-2 py-1 rounded-lg border ${c.bg} ${c.text} ${c.border}`}
@@ -69,7 +98,7 @@ function MobileCommentCard({
         </button>
       </div>
 
-      {/* Meta chips */}
+      {/* Meta chips: country, subs, likes, replies */}
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Chip>{r.authorCountry || '—'}</Chip>
         <Chip>Subs: {r.authorSubscriberCount ?? '—'}</Chip>
@@ -77,7 +106,7 @@ function MobileCommentCard({
         <Chip>Replies: {r.totalReplyCount}</Chip>
       </div>
 
-      {/* Text */}
+      {/* Body text (collapsible if long) */}
       <div className={`mt-2 text-sm whitespace-pre-wrap ${expanded ? '' : 'line-clamp-3'}`}>
         {r.textOriginal}
       </div>
@@ -94,27 +123,42 @@ function MobileCommentCard({
   )
 }
 
+/**
+ * CommentsTable
+ * -------------
+ * Main exported component. Handles:
+ *  - State for filtering, sorting, pagination
+ *  - Switching between mobile and desktop layouts
+ *  - Triggering RepliesModal for per-comment reply threads
+ */
 export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: boolean }) {
+  // RepliesModal open state
   const [open, setOpen] = React.useState<{ show: boolean; parent: any; replies: any[] }>({
     show: false,
     parent: null,
     replies: [],
   })
+
+  // Pagination state
   const [page, setPage] = React.useState(1)
   const pageSize = 30
 
+  // Sorting state
   const [sortKey, setSortKey] = React.useState<SortKey>('adjusted')
   const [sortDir, setSortDir] = React.useState<SortDir>('desc')
+
+  // Text search state
   const [fText, setFText] = React.useState('')
 
-  // Local-only sentiment chips
+  // Sentiment bucket filter
   const [bucket, setBucket] = React.useState<SentimentBucket>('all')
 
+  // Reset to page 1 when filters/sorts change
   React.useEffect(() => {
     setPage(1)
   }, [fText, sortKey, sortDir, bucket])
 
-  // Filter by chips + search
+  // Filter rows by sentiment bucket + text search
   const filtered = rows
     .filter((r) => {
       const s = r.adjusted
@@ -129,28 +173,52 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
     })
     .filter((r) => !fText || r.textOriginal.toLowerCase().includes(fText.toLowerCase()))
 
-  // Sort
+  // Sort rows by active column
   const sorted = React.useMemo(() => {
-    const out = [...filtered]
+    // Defensive: deep copy rows so sorting can never mutate upstream
+    const out = filtered.map(r => ({ ...r }));
+
     out.sort((a, b) => {
-      const va = (a as any)[sortKey], vb = (b as any)[sortKey]
-      if (va == null && vb == null) return 0
-      if (va == null) return sortDir === 'asc' ? -1 : 1
-      if (vb == null) return sortDir === 'asc' ? 1 : -1
-      if (sortKey === 'authorDisplayName' || sortKey === 'publishedAt' || sortKey === 'authorCountry') {
+      const va = (a as any)[sortKey];
+      const vb = (b as any)[sortKey];
+
+      if (va == null && vb == null) return 0;
+      if (va == null) return sortDir === 'asc' ? -1 : 1;
+      if (vb == null) return sortDir === 'asc' ? 1 : -1;
+
+      // String fields
+      if (['authorDisplayName', 'authorCountry'].includes(sortKey)) {
         return sortDir === 'asc'
           ? String(va).localeCompare(String(vb))
-          : String(vb).localeCompare(String(va))
+          : String(vb).localeCompare(String(va));
       }
-      return sortDir === 'asc' ? va - vb : vb - va
-    })
-    return out
-  }, [filtered, sortKey, sortDir])
 
+      // Dates: parse to timestamp for stable sorting
+      if (sortKey === 'publishedAt') {
+        const da = new Date(va).getTime();
+        const db = new Date(vb).getTime();
+        return sortDir === 'asc' ? da - db : db - da;
+      }
+
+      // Numeric fields (likes, replies, subs, adjusted)
+      const numA = Number(va);
+      const numB = Number(vb);
+      return sortDir === 'asc' ? numA - numB : numB - numA;
+    });
+
+    return out;
+  }, [filtered, sortKey, sortDir]);
+
+
+
+
+
+  // Pagination helpers
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const start = (page - 1) * pageSize
   const visible = sorted.slice(start, start + pageSize)
 
+  // Render header button with sorting toggle
   function header(label: string, key: SortKey) {
     const active = sortKey === key
     const arrow = active ? (sortDir === 'asc' ? '▲' : '▼') : ''
@@ -159,8 +227,12 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         type="button"
         className="font-semibold"
         onClick={() => {
-          if (active) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-          else { setSortKey(key); setSortDir('desc') }
+          if (active) {
+            setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+          } else {
+            setSortKey(key)
+            setSortDir('asc') // default to ascending first
+          }
         }}
       >
         {label} {arrow}
@@ -170,7 +242,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
 
   return (
     <div className="card p-4">
-      {/* Header: title + INLINE chips + search */}
+      {/* Header row: title, filter chips, search box */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-2">
         <h3 className="text-lg font-semibold">
           Comments ({filtered.length}{filtered.length !== rows.length ? ` / ${rows.length}` : ''})
@@ -197,7 +269,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         </div>
       </div>
 
-      {/* MOBILE LIST (stacked cards) */}
+      {/* Mobile layout: stacked cards */}
       <div className="md:hidden space-y-3">
         {visible.length === 0 ? (
           <div className="p-4 text-center text-gray-500">No Data</div>
@@ -214,7 +286,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         )}
       </div>
 
-      {/* DESKTOP TABLE (hidden on mobile) */}
+      {/* Desktop layout: sortable table */}
       <div className="hidden md:block table-wrap">
         <table className="min-w-full text-sm table-fixed">
           <thead className="sticky top-0 bg-gray-50 dark:bg-gray-900">
@@ -272,7 +344,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         </table>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination controls */}
       <div className="flex items-center justify-between mt-3">
         <div className="text-xs text-gray-500">
           Page {page} / {totalPages}
@@ -297,6 +369,7 @@ export function CommentsTable({ rows, loading }: { rows: ScoredRow[]; loading?: 
         </div>
       </div>
 
+      {/* Replies modal (always rendered but toggled by `open.show`) */}
       <RepliesModal
         open={open.show}
         onClose={() => setOpen({ show: false, parent: null, replies: [] })}
