@@ -40,21 +40,33 @@ function Slider({
         <span className="text-sm text-gray-600 dark:text-gray-300">{label}</span>
         <span className="text-sm font-mono">{value.toFixed(1)}</span>
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        className="
-          w-full h-2 rounded-lg appearance-none cursor-pointer
-          bg-gray-200 dark:bg-gray-700
-          accent-fuchsia-500
-          disabled:opacity-50
-        "
-      />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          className="
+            w-full h-2 rounded-lg appearance-none cursor-pointer
+            bg-gray-200 dark:bg-gray-700
+            disabled:opacity-50
+            [&::-webkit-slider-thumb]:appearance-none
+            [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+            [&::-webkit-slider-thumb]:rounded-full
+            [&::-webkit-slider-thumb]:bg-gradient-to-r [&::-webkit-slider-thumb]:from-red-500 [&::-webkit-slider-thumb]:to-fuchsia-500
+            [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white
+            dark:[&::-webkit-slider-thumb]:border-gray-800
+            [&::-webkit-slider-thumb]:cursor-pointer
+            [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5
+            [&::-moz-range-thumb]:rounded-full
+            [&::-moz-range-thumb]:bg-gradient-to-r [&::-moz-range-thumb]:from-red-500 [&::-moz-range-thumb]:to-fuchsia-500
+            [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
+            dark:[&::-moz-range-thumb]:border-gray-800
+            [&::-moz-range-thumb]:cursor-pointer
+          "
+        />
     </div>
   )
 }
