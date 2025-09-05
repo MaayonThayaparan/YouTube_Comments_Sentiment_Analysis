@@ -4,6 +4,14 @@ export default {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],
+  safelist: [
+    'card', 'card-ghost',
+    'btn', 'btn-primary',
+    'badge',
+    'table-wrap', 'wrap-anywhere',
+    'chip', 'topword-chip',
+    'header-grad',
+  ],
   theme: {
     extend: {
       fontFamily: {
