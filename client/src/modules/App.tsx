@@ -28,12 +28,17 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string>("");
+
   const [progress, setProgress] = useState<{
     totalPages: number;
     fetchedPages: number;
     totalTexts: number;
     scoredTexts: number;
   } | null>(null);
+
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [weights, setWeights] = useState<Weights>({ wComment: 1.0, wLikes: 0.7, wReplies: 1.0 });
   const [model, setModel] = useState<string>("vader");
@@ -97,6 +102,7 @@ export default function App() {
   async function fetchComments(videoIdOrUrl: string) {
     setLoading(true);
     setError(null);
+    setSummary(null); // reset summary when starting fresh
     try {
       setLastQuery(videoIdOrUrl);
       const jid = Math.random().toString(36).slice(2);
@@ -120,17 +126,39 @@ export default function App() {
     }
   }
 
+  async function fetchSummary(texts: string[]) {
+    if (!texts.length) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:5177";
+      const res = await fetch(`${API_BASE}/api/summarize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "X-API-Key": apiKey } : {}),
+        },
+        body: JSON.stringify({ texts, model }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Failed to summarize");
+      setSummary(data.summary || "");
+    } catch (e: any) {
+      setSummaryError(e.message || "Failed to summarize");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   // -------------------------- Global filtered data ---------------------------
   const scoredAll = useMemo(() => computeAdjustedScores(items, weights), [items, weights]);
 
   const scoredWindowed = useMemo(() => {
-    // 1) Date window
     const dateFiltered = scoredAll.filter((r) => {
       const d = (r.publishedAt || "").slice(0, 10);
       return (!filters.from || d >= filters.from) && (!filters.to || d <= filters.to);
     });
 
-    // 2) Country + numeric ranges (subs/likes/replies)
     const minSubs = filters.minSubs === "" ? -Infinity : Number(filters.minSubs);
     const maxSubs = filters.maxSubs === "" ? Infinity : Number(filters.maxSubs);
     const minLikes = filters.minLikes === "" ? -Infinity : Number(filters.minLikes);
@@ -140,7 +168,6 @@ export default function App() {
 
     return dateFiltered.filter((r) => {
       const passCountry = !filters.country || r.authorCountry === filters.country;
-
       const subs = r.authorSubscriberCount ?? -1;
       const passSubs =
         (subs === -1 && filters.minSubs === "" && filters.maxSubs === "") ||
@@ -160,6 +187,21 @@ export default function App() {
     });
   }, [scoredAll, filters]);
 
+  const allTexts = useMemo(
+    () => [
+      ...items.map((i) => i.textOriginal),
+      ...items.flatMap((i) => i.replies?.map((r) => r.textOriginal) || []),
+    ],
+    [items]
+  );
+
+  // Trigger auto-summary after comments load
+  useEffect(() => {
+    if (!loading && items.length) {
+      fetchSummary(allTexts);
+    }
+  }, [loading, items, allTexts]);
+
   const progressPct =
     progress && progress.totalTexts > 0
       ? Math.floor((progress.scoredTexts / progress.totalTexts) * 100)
@@ -169,50 +211,6 @@ export default function App() {
     : progress?.fetchedPages
     ? `page ${progress.fetchedPages}`
     : "";
-
-  function openEvidence(type: string) {
-    let title = "Evidence";
-    let itemsX: Array<{ author: string; text: string; score?: number }> = [];
-    if (type === "pos") {
-      title = "Positive sample comments";
-      itemsX = scoredWindowed.filter((r) => r.adjusted > 0.4).slice(0, 20).map((r) => ({
-        author: r.authorDisplayName,
-        text: r.textOriginal,
-        score: r.adjusted,
-      }));
-    } else if (type === "neg") {
-      title = "Negative sample comments";
-      itemsX = scoredWindowed.filter((r) => r.adjusted < -0.4).slice(0, 20).map((r) => ({
-        author: r.authorDisplayName,
-        text: r.textOriginal,
-        score: r.adjusted,
-      }));
-    } else if (type === "neu") {
-      title = "Neutral sample comments";
-      itemsX = scoredWindowed.filter((r) => Math.abs(r.adjusted) <= 0.1).slice(0, 20).map((r) => ({
-        author: r.authorDisplayName,
-        text: r.textOriginal,
-        score: r.adjusted,
-      }));
-    } else if (type === "avg") {
-      title = "Comments near average sentiment";
-      const avg =
-        scoredWindowed.reduce((a, b) => a + b.adjusted, 0) / (scoredWindowed.length || 1)
-      itemsX = scoredWindowed
-        .sort((a, b) => Math.abs(a.adjusted - avg) - Math.abs(b.adjusted - avg))
-        .slice(0, 20)
-        .map((r) => ({ author: r.authorDisplayName, text: r.textOriginal, score: r.adjusted }))
-    }
-    setEvidence({ open: true, title, items: itemsX })
-  }
-
-  const allTexts = useMemo(
-    () => [
-      ...items.map((i) => i.textOriginal),
-      ...items.flatMap((i) => i.replies?.map((r) => r.textOriginal) || []),
-    ],
-    [items]
-  )
 
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -236,38 +234,49 @@ export default function App() {
       {/* Video meta + unified filters */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
         <div className="md:col-span-5">
-          {/* wrapper guarantees the child stretches to cell height */}
           <div className="h-full">
             <VideoMetaCard videoIdOrUrl={lastQuery} />
           </div>
         </div>
-
         <div className="md:col-span-7">
           <UnifiedFilters
-            className="h-full"               // NEW: make UnifiedFilters fill height
+            className="h-full"
             value={filters}
             onDateChange={(from, to) => setFilters((s) => ({ ...s, from, to }))}
             onCountryChange={(country) => setFilters((s) => ({ ...s, country }))}
             onSubsChange={(min, max) => setFilters((s) => ({ ...s, minSubs: min, maxSubs: max }))}
             onLikesChange={(min, max) => setFilters((s) => ({ ...s, minLikes: min, maxLikes: max }))}
-            onRepliesChange={(min, max) => setFilters((s) => ({ ...s, minReplies: min, maxReplies: max }))}
+            onRepliesChange={(min, max) =>
+              setFilters((s) => ({ ...s, minReplies: min, maxReplies: max }))
+            }
             onClear={() =>
               setFilters((s) => ({
                 ...s,
                 from: minDate,
                 to: maxDate,
                 country: null,
-                minSubs: '',
-                maxSubs: '',
-                minLikes: '',
-                maxLikes: '',
-                minReplies: '',
-                maxReplies: '',
+                minSubs: "",
+                maxSubs: "",
+                minLikes: "",
+                maxLikes: "",
+                minReplies: "",
+                maxReplies: "",
               }))
             }
           />
         </div>
       </div>
+
+      {!loading && (
+        <SummaryPanel
+          summary={summary}
+          loading={summaryLoading}
+          error={summaryError}
+          hasData={items.length > 0}
+          onResummarize={() => fetchSummary(allTexts)}
+        />
+      )}
+
 
       {loading ? (
         <>
@@ -291,36 +300,25 @@ export default function App() {
         </>
       ) : (
         <>
-          {/* Charts & KPIs reflect ONLY the global unified filters */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <MetricsPanel rows={scoredWindowed as any} onEvidence={openEvidence} />
+            <MetricsPanel rows={scoredWindowed as any} onEvidence={() => {}} />
             <SentimentPie rows={scoredWindowed as any} />
             <SentimentChart rows={scoredWindowed as any} />
           </div>
-
           <div className="grid grid-cols-1 gap-6">
             <TimeSeriesChart rows={scoredWindowed as any} />
           </div>
-
           <WeightsPanel weights={weights} onChange={setWeights} disabled={!items.length} />
-
           {error && (
-            <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">
-              {error}
-            </div>
+            <div className="text-red-600 bg-red-50 border border-red-200 p-3 rounded-lg">{error}</div>
           )}
-
-          {/* Comments table now owns its sentiment chips */}
           <CommentsTable rows={scoredWindowed as any} />
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <TopWords rows={scoredWindowed as any} />
             <Leaderboard rows={scoredWindowed as any} />
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ExportPanel rows={scoredWindowed as any} />
-            <SummaryPanel texts={allTexts} model={model} apiKey={apiKey} />
           </div>
         </>
       )}

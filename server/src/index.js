@@ -74,11 +74,53 @@ app.post("/api/summarize",async(req,res)=>{
       const {data:merged}=await axios.post(`${provider.baseUrl}/chat/completions`,{model:provider.model,messages:[{role:"user",content:mergePrompt}],temperature:0.2},{headers:{Authorization:`Bearer ${provider.apiKey}`},timeout:45000})
       return String(merged?.choices?.[0]?.message?.content||"").trim()
     }
+    async function geminiSumm(textsArr) {
+      const chunkSize = 200;
+      const chunks = [];
+      for (let i = 0; i < textsArr.length; i += chunkSize)
+        chunks.push(textsArr.slice(i, i + chunkSize));
+
+      const partials = [];
+      for (const c of chunks) {
+        const prompt = `Return ONLY 3 bullets summarizing comment sentiment (positive/negative/mixed). Keep terse.\n- ${c.join(
+          "\n- "
+        )}`;
+        const { data } = await axios.post(
+          `${provider.baseUrl}/${provider.model}:generateContent?key=${provider.apiKey}`,
+          { contents: [{ parts: [{ text: prompt }] }] },
+          { timeout: 45000 }
+        );
+        partials.push(
+          String(
+            data?.candidates?.[0]?.content?.parts?.[0]?.text || ""
+          ).trim()
+        );
+      }
+
+      const mergePrompt = `Merge these bullets into 3-6 concise bullets (no preamble):\n${partials
+        .map((p) => "- " + p)
+        .join("\n")}`;
+
+      const { data: merged } = await axios.post(
+        `${provider.baseUrl}/${provider.model}:generateContent?key=${provider.apiKey}`,
+        { contents: [{ parts: [{ text: mergePrompt }] }] },
+        { timeout: 45000 }
+      );
+
+      return (
+        merged?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+        "Failed to summarize"
+      );
+    }
+
+    if (ctor === "GeminiProvider")
+      return res.json({ summary: await geminiSumm(texts), model });
+
     if(ctor==="OllamaLlama3Provider") return res.json({summary:await llamaSumm(texts), model})
     if(ctor==="OpenAIProvider") return res.json({summary:await openaiSumm(texts), model})
     const sample=texts.slice(0,500).join(" "); const posWords=(sample.match(/\b(good|great|love|amazing|nice|awesome|excellent|helpful|cool)\b/gi)||[]).length; const negWords=(sample.match(/\b(bad|terrible|hate|awful|worse|worst|boring|lame|stupid|annoying|fake|trash)\b/gi)||[]).length
     const tilt=posWords-negWords; const tone=tilt>5?"mostly positive":tilt<-5?"mostly negative":"mixed/neutral"
-    return res.json({ summary: `• Overall tone is ${tone}.\n• Lexicon suggests key emotional tilt.\n• Use OpenAI/Ollama for richer summaries.`, model })
+    return res.json({ summary: `• Overall tone is ${tone}.\n• Use OpenAI/Gemini for richer summaries.`, model })
   }catch(err){ console.error("[/api/summarize]",err?.message||err); res.status(500).json({error:"Failed to summarize"}) }
 })
 

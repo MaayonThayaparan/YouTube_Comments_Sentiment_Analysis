@@ -1,16 +1,24 @@
+// server/src/sentiment/GeminiProvider.js
 import { ISentimentProvider } from "./ISentimentProvider.js";
 import axios from "axios";
 
-export class OpenAIProvider extends ISentimentProvider {
+/**
+ * GeminiProvider — Google Gemini sentiment scoring
+ * Requires: API key via opts.apiKey
+ * Default model: "gemini-1.5-flash-latest"
+ */
+export class GeminiProvider extends ISentimentProvider {
   constructor(opts = {}) {
     super();
     this.apiKey = opts.apiKey || "";
-    this.model = opts.model || "gpt-4o-mini";
-    this.baseUrl = opts.baseUrl || "https://api.openai.com/v1";
+    this.model = opts.model || "gemini-1.5-flash";
+    this.baseUrl =
+      opts.baseUrl ||
+      "https://generativelanguage.googleapis.com/v1beta/models";
   }
 
   async analyzeBatch(texts) {
-    if (!this.apiKey) throw new Error("OpenAI API key missing");
+    if (!this.apiKey) throw new Error("Gemini API key missing");
     const out = [];
 
     for (const text of texts) {
@@ -27,20 +35,20 @@ Score:`;
 
       try {
         const { data } = await axios.post(
-          `${this.baseUrl}/chat/completions`,
+          `${this.baseUrl}/${this.model}:generateContent?key=${this.apiKey}`,
           {
-            model: this.model,
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.0,
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
           },
-          { headers: { Authorization: `Bearer ${this.apiKey}` }, timeout: 45000 }
+          { timeout: 45000 }
         );
 
-        const content = data?.choices?.[0]?.message?.content || "";
+        const content =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
         const m = String(content).match(/-?\d+(?:\.\d+)?/);
         const num = m ? Math.max(-1, Math.min(1, parseFloat(m[0]) || 0)) : 0;
         out.push(Number.isFinite(num) ? num : 0);
-      } catch {
+      } catch (err) {
+        console.error("[GeminiProvider]", err?.response?.data || err.message);
         out.push(0);
       }
     }
