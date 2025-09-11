@@ -1,17 +1,48 @@
-# YouTube Comment Sentiment Analyzer
+# YouTube Comment Sentiment Analyzer  
 
-## What’s new
-- **Theme toggle** (auto/light/dark)
-- **Sentiment range chips** for quick filtering
-- **Author enrichment**: country + subscriberCount pulled via `channels.list` (when available).
-- **Global filters**: filter charts/tables by **country** and **min/max subscribers**.
-- **Leaderboard modal**: click an author to see their comments/replies.
-- **Modern background**: subtle grid + gradients for a sleek, techy vibe.
-- All prior features & fixes retained (Windows newline fix, loaders, VADER default, etc.).
+## Overview  
+YouTube’s removal of public dislike counts makes it harder to gauge the overall sentiment of videos.  
+This project solves that problem by analyzing comments from any YouTube video and presenting AI-powered sentiment insights in multiple interactive formats.  
 
-## Limitations / honesty
-- YouTube does **not** expose per-comment geolocation. We use **channel country** (may be empty).
-- Some channels hide subscriber counts; those will show as **null** and only pass filters if no sub-range is applied.
+View application at below link: 
+
+https://www.youtube-sentiment.com
+
+## Features  
+- **AI-Powered Comment Summary**  
+  - Generates a 3–6 sentence overview of overall sentiment, common themes, and discussion tone.  
+
+- **Multiple Sentiment Engines**  
+  - **VADER** (default, free, no setup required)  
+  - **OpenAI** (requires API key, never stored)  
+  - **Gemini** (requires API key, never stored)  
+
+- **Interactive Visualizations**  
+  - Sentiment breakdowns as numeric stats, pie charts, and bar charts  
+  - Average sentiment over time chart  
+
+- **Customizable Analysis**  
+  - Adjust weights for top-level comment score, likes, and reply sentiment  
+  - Filter by date range, subscriber count, likes, replies, or country  
+
+- **Detailed Data Views**  
+  - Full table of comments and replies  
+  - Leaderboards: most liked comment, most positive/negative replies (with modal details)  
+  - Top 20 most frequent words overall, positive, and negative  
+
+- **Export & Sharing**  
+  - Export data as CSV  
+
+- **UI Enhancements**  
+  - Theme toggle (light, dark, neon)  
+
+## Tech Stack  
+- **Frontend:** React, TypeScript, Vite  
+- **Backend:** Node.js, Express  
+- **AI & NLP:** VADER Sentiment, OpenAI API, Google Gemini API  
+- **Data Visualization:** Chart.js, Recharts  
+- **APIs & Data Handling:** YouTube Data API, RESTful HTTP endpoints  
+- **Other Tools:** CSV export, environment variable–based API key management  
 
 ## Run (Windows PowerShell)
 ```powershell
@@ -28,13 +59,3 @@ npm install
 npm install -D @vitejs/plugin-react@4.3.1  # Node 18 compatible
 npm run dev
 ```
-
-## Models
-- **VADER (default)** — no key required.
-- **LLaMA 3 (free)** — requires local Ollama; run `ollama pull llama3`.
-- **OpenAI GPT-4o-mini** — bring your key in the Analyze bar; key is memory-only (not stored).
-
-## Notes for co-devs (design rationale)
-- Enrichment happens server-side so we don’t expose API keys in the browser.
-- Filters are applied **before** computing chart payloads so everything stays in sync.
-- We keep caching per (videoId, model) to avoid rescoring on accidental reloads.
